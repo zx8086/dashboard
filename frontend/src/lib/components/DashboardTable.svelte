@@ -57,11 +57,13 @@
             
             const result = await response.json();
             correlations = result.data;
+            totalEntries = result.total;
             error = null;
         } catch (err) {
             console.error('Error fetching data:', err);
             error = err instanceof Error ? err.message : 'Failed to fetch results';
             correlations = [];
+            totalEntries = 0;
         } finally {
             loading = false;
         }
@@ -184,6 +186,18 @@
                     {/each}
                 </tbody>
             </table>
+            
+            <!-- Add this end-of-results indicator -->
+            <div class="text-center py-4 text-sm text-gray-500 border-t border-gray-200">
+                {#if loadingMore}
+                    <div class="flex justify-center items-center gap-2">
+                        <div class="animate-spin h-4 w-4 border-b-2 border-gray-500 rounded-full"></div>
+                        Loading more...
+                    </div>
+                {:else}
+                    End of results - {totalEntries} entries found
+                {/if}
+            </div>
         {/if}
     </div>
 </div>

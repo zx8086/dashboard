@@ -136,7 +136,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             must.push({
                 wildcard: {
                     "correlationId": {
-                        value: `*${params.search.toLowerCase()}*`
+                        value: `*${params.search}*`
                     }
                 }
             });
