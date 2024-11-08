@@ -142,7 +142,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 correlations: {
                     terms: {
                         field: "correlationId",
-                        size: 2000,
+                        size: 2000,  // Back to 2000 results
                         order: { "start_time": "desc" }
                     },
                     aggs: {
