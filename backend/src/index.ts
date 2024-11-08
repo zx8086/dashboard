@@ -24,6 +24,9 @@ app.get("/api/correlations", async (req: express.Request, res: express.Response)
       application: req.query.application as string,
       search: req.query.search as string,
       environment: req.query.environment as string,
+      interfaceId: req.query.interfaceId as string,
+      organization: req.query.organization as string,
+      domain: req.query.domain as string,
       page: req.query.page ? parseInt(req.query.page as string) : undefined,
       pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string) : undefined,
     });

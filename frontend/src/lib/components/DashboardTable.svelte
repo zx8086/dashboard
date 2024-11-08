@@ -37,6 +37,18 @@
                 queryParams.append('environment', $filters.environment);
             }
 
+            if ($filters.organization) {
+                queryParams.append('organization', $filters.organization);
+            }
+            
+            if ($filters.domain) {
+                queryParams.append('domain', $filters.domain);
+            }
+            
+            if ($filters.interfaceId) {
+                queryParams.append('interfaceId', $filters.interfaceId);
+            }
+
             const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
             
             if (!response.ok) {

@@ -27,6 +27,18 @@
         { value: 'prod', label: 'Production' }
     ];
 
+    const organizationOptions = [
+        { value: '', label: 'All Organizations' },
+        { value: 'Global Value Chain', label: 'Global Value Chain' },
+        // Add other organizations as needed
+    ];
+
+    const domainOptions = [
+        { value: '', label: 'All Domains' },
+        { value: 'Supply Chain', label: 'Supply Chain' },
+        // Add other domains as needed
+    ];
+
     function handleStatusChange(event: Event) {
         const select = event.target as HTMLSelectElement;
         const value = select.value;
@@ -45,7 +57,7 @@
 </script>
 
 <div class="bg-white p-4 mb-4">
-    <div class="grid grid-cols-5 gap-4">
+    <div class="grid grid-cols-5 gap-4 mb-4">
         <!-- Time Range -->
         <div>
             <label class="block text-sm font-medium text-gray-700">Time Range</label>
@@ -108,6 +120,41 @@
                     <option value={option.value}>{option.label}</option>
                 {/each}
             </select>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4">
+        <!-- Organization -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700">Organization</label>
+            <input 
+                type="text" 
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                placeholder="Search organization..."
+                bind:value={$filters.organization}
+            />
+        </div>
+
+        <!-- Domain -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700">Domain</label>
+            <input 
+                type="text" 
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                placeholder="Search domain..."
+                bind:value={$filters.domain}
+            />
+        </div>
+
+        <!-- Interface ID -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700">Interface ID</label>
+            <input 
+                type="text" 
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                placeholder="Search interface ID..."
+                bind:value={$filters.interfaceId}
+            />
         </div>
     </div>
 </div>

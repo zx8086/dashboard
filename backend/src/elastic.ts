@@ -142,6 +142,36 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             });
         }
 
+        if (params.organization) {
+            must.push({
+                wildcard: {
+                    "interface_metadata.org": {
+                        value: `*${params.organization}*`
+                    }
+                }
+            });
+        }
+
+        if (params.domain) {
+            must.push({
+                wildcard: {
+                    "interface_metadata.domain": {
+                        value: `*${params.domain}*`
+                    }
+                }
+            });
+        }
+
+        if (params.interfaceId) {
+            must.push({
+                wildcard: {
+                    "interfaceId": {
+                        value: `*${params.interfaceId}*`
+                    }
+                }
+            });
+        }
+
         const result = await elasticClient.search({
             index: "logs-mulesoft-default",
             size: 0,

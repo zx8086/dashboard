@@ -8,6 +8,9 @@ export interface FilterState {
     application: string;
     searchTerm: string;
     environment: string;
+    organization: string;
+    domain: string;
+    interfaceId: string;
 }
 
 export interface PaginationState {
@@ -22,7 +25,10 @@ export const filters = writable<FilterState>({
     status: null,
     application: '',
     searchTerm: '',
-    environment: 'preprod'
+    environment: 'preprod',
+    organization: '',
+    domain: '',
+    interfaceId: ''
 });
 
 export const pagination = writable<PaginationState>({
