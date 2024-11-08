@@ -1,6 +1,7 @@
 <!-- frontend/src/lib/components/DashboardFilters.svelte -->
 
 <script lang="ts">
+    import { onMount } from 'svelte';
     import { filters } from '../stores/dashboard';
     
     const timeRangeOptions = [
@@ -19,6 +20,13 @@
         { value: 3, label: 'Unknown (No Start/End)' }
     ];
 
+    const environmentOptions = [
+        { value: 'dev', label: 'Development' },
+        { value: 'qa', label: 'QA' },
+        { value: 'preprod', label: 'Pre-Production' },
+        { value: 'prod', label: 'Production' }
+    ];
+
     function handleStatusChange(event: Event) {
         const select = event.target as HTMLSelectElement;
         const value = select.value;
@@ -30,10 +38,14 @@
         }
         console.log('Status changed to:', $filters.status, typeof $filters.status);
     }
+
+    onMount(() => {
+        $filters.environment = 'preprod';
+    });
 </script>
 
 <div class="bg-white p-4 mb-4">
-    <div class="grid grid-cols-4 gap-4">
+    <div class="grid grid-cols-5 gap-4">
         <!-- Time Range -->
         <div>
             <label class="block text-sm font-medium text-gray-700">Time Range</label>
@@ -83,6 +95,19 @@
                 placeholder="Search correlation IDs..."
                 bind:value={$filters.searchTerm}
             />
+        </div>
+
+        <!-- New Environment Filter -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700">Environment</label>
+            <select 
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                bind:value={$filters.environment}
+            >
+                {#each environmentOptions as option}
+                    <option value={option.value}>{option.label}</option>
+                {/each}
+            </select>
         </div>
     </div>
 </div>

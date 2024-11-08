@@ -7,6 +7,7 @@ export interface FilterState {
     status: number | null;
     application: string;
     searchTerm: string;
+    environment: string;
 }
 
 export interface PaginationState {
@@ -20,7 +21,8 @@ export const filters = writable<FilterState>({
     timeRange: '15m',
     status: null,
     application: '',
-    searchTerm: ''
+    searchTerm: '',
+    environment: 'preprod'
 });
 
 export const pagination = writable<PaginationState>({

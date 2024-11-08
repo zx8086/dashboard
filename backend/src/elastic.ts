@@ -106,7 +106,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         const must: any[] = [
             {
                 range: {
-                    timestamp: {
+                    "@timestamp": {
                         gte: `now-${params.timeRange}`,
                         lte: 'now'
                     }
@@ -114,10 +114,20 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             }
         ];
 
-        if (params.application) {
+        if (params.environment) {
             must.push({
                 term: {
-                    applicationName: params.application
+                    "environment": params.environment.toLowerCase()
+                }
+            });
+        }
+
+        if (params.application) {
+            must.push({
+                wildcard: {
+                    "applicationName": {
+                        value: `*${params.application.toLowerCase()}*`
+                    }
                 }
             });
         }
@@ -125,7 +135,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         if (params.search) {
             must.push({
                 wildcard: {
-                    correlationId: {
+                    "correlationId": {
                         value: `*${params.search.toLowerCase()}*`
                     }
                 }

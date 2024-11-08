@@ -11,6 +11,7 @@ export interface QueryParams {
   interfaceId?: string;
   businessEntity?: string;
   search?: string;
+  environment?: string;
 }
 
 export const validateQueryParams = (params: Partial<QueryParams>): QueryParams => {
@@ -22,7 +23,8 @@ export const validateQueryParams = (params: Partial<QueryParams>): QueryParams =
     application: params.application || undefined,
     interfaceId: params.interfaceId || undefined,
     businessEntity: params.businessEntity || undefined,
-    search: params.search || undefined
+    search: params.search || undefined,
+    environment: params.environment || undefined
   };
 };
 

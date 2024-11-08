@@ -33,6 +33,10 @@
                 queryParams.append('search', $filters.searchTerm);
             }
 
+            if ($filters.environment) {
+                queryParams.append('environment', $filters.environment);
+            }
+
             const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
             
             if (!response.ok) {
