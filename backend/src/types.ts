@@ -55,7 +55,9 @@ export interface CorrelationBucket {
   has_end: { doc_count: number };
   has_exception: { doc_count: number };
   overall_status: { value: number };
-  elapsed_time_ms: { value: number };
+  elapsed_time_ms: {
+    value: number | null;
+  };
   app_statuses: {
     by_app: {
       buckets: Array<{

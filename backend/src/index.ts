@@ -2,7 +2,7 @@
 
 import express from "express";
 import cors from "cors";
-import { getCorrelations, getClusterHealth, elasticClient } from "./elastic.js";
+import { getCorrelations, getClusterHealth, elasticClient, getPerformanceMetrics } from "./elastic.js";
 import { validateQueryParams } from "./types.js";
 
 const app = express();
@@ -91,6 +91,16 @@ app.get("/api/debug/environments", async (req: express.Request, res: express.Res
     } catch (error) {
         console.error('Environment check error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/metrics', async (c) => {
+    try {
+        const timeRange = c.query.timeRange || '1h';
+        const metrics = await getPerformanceMetrics(timeRange);
+        return c.json(metrics);
+    } catch (error) {
+        return c.json({ error: error.message }, 500);
     }
 });
 

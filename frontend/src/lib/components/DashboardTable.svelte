@@ -7,6 +7,7 @@
     import ApplicationsList from './ApplicationsList.svelte';
     import DashboardFilters from './DashboardFilters.svelte';
     import TotalEntries from './TotalEntries.svelte';
+    import { formatElapsedTime } from '../utils/time';
     
     let correlations = [];
     let loading = true;
@@ -17,6 +18,11 @@
     let lastKey: string | null = null;
     let container: HTMLElement;
     let totalEntries = 0;
+
+    // Add type safety for elapsed_time_ms
+    interface ElapsedTime {
+        value: number;
+    }
 
     onMount(() => {
         mounted = true;
@@ -177,7 +183,11 @@
                                 {new Date(row.end_time.value).toLocaleString()}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                {row.elapsed_time_ms?.value || '-'}
+                                {#if row.elapsed_time_ms?.value !== undefined}
+                                    {formatElapsedTime(row.elapsed_time_ms.value)}
+                                {:else}
+                                    N/A
+                                {/if}
                             </td>
                             <td class="px-6 py-4">
                                 <StatusBadge status={row.overall_status.value} />

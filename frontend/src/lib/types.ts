@@ -41,4 +41,7 @@ export interface CorrelationData {
     start_time: { value: number };
     end_time: { value: number };
     status: { value: number };
+    elapsed_time_ms: {
+        value: number | null;
+    };
 }
