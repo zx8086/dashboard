@@ -115,7 +115,14 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             }
         ];
 
-        // Alternative search implementation
+        if (params.application) {
+            must.push({
+                term: {
+                    applicationName: params.application
+                }
+            });
+        }
+
         if (params.search) {
             must.push({
                 wildcard: {
@@ -126,6 +133,13 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             });
         }
 
+        // Calculate after key based on current page
+        const afterKey = params.page > 1 ? { 
+            correlation: getLastCorrelationId(params.page - 1) // You'll need to maintain this state
+        } : undefined;
+
+        const pageSize = params.pageSize || 50;
+
         const result = await elasticClient.search({
             index: "logs-mulesoft-default",
             size: 0,
@@ -134,10 +148,19 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             },
             aggs: {
                 correlations: {
-                    terms: {
-                        field: "correlationId",
-                        size: 2000,
-                        order: { "start_time": "desc" }
+                    composite: {
+                        size: pageSize,
+                        sources: [
+                            {
+                                correlation: {
+                                    terms: {
+                                        field: "correlationId",
+                                        order: "desc"
+                                    }
+                                }
+                            }
+                        ],
+                        after: afterKey
                     },
                     aggs: {
                         applications: {
@@ -220,25 +243,27 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             }
         });
 
-        let buckets = result.aggregations?.correlations?.buckets || [];
-        
-        // Apply filters
-        if (params.status !== undefined && params.status !== null) {
-            buckets = buckets.filter(bucket => 
+        const buckets = result.aggregations?.correlations?.buckets || [];
+        const afterKeyResponse = result.aggregations?.correlations?.after_key;
+
+        // Filter by status if needed
+        const filteredBuckets = params.status !== undefined && params.status !== null
+            ? buckets.filter(bucket => 
                 bucket.overall_status && 
                 bucket.overall_status.value === params.status
-            );
+            )
+            : buckets;
+
+        // Store the last correlation ID for next page
+        if (afterKeyResponse) {
+            storeLastCorrelationId(params.page, afterKeyResponse.correlation);
         }
 
-        // Apply pagination with increased page size
-        const pageSize = params.pageSize || 50;
-        const start = ((params.page || 1) - 1) * pageSize;
-        const paginatedBuckets = buckets.slice(start, start + pageSize);
-
         return {
-            data: paginatedBuckets,
-            total: buckets.length,
-            hasMore: buckets.length > (start + pageSize)
+            data: filteredBuckets,
+            total: result.aggregations?.correlations?.buckets?.length || 0,
+            hasMore: !!afterKeyResponse,
+            afterKey: afterKeyResponse
         };
 
     } catch (error) {
@@ -247,9 +272,15 @@ export const getCorrelations = async (params: QueryParams = {}) => {
     }
 };
 
-// Helper function to calculate the after key for pagination
-function getAfterKey(page: number, pageSize: number): string {
-  return `${(page - 1) * pageSize}`;
+// Helper functions to manage pagination state
+const correlationIdCache = new Map<number, string>();
+
+function storeLastCorrelationId(page: number, correlationId: string) {
+    correlationIdCache.set(page, correlationId);
+}
+
+function getLastCorrelationId(page: number): string | undefined {
+    return correlationIdCache.get(page);
 }
 
 export const getClusterHealth = async () => {

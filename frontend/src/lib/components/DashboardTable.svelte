@@ -1,7 +1,7 @@
 <!-- frontend/src/lib/components/DashboardTable.svelte -->
 
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount } from 'svelte';
     import { filters, pagination } from '../stores/dashboard';
     import StatusBadge from './StatusBadge.svelte';
     import ApplicationsList from './ApplicationsList.svelte';
@@ -10,8 +10,8 @@
     let correlations = [];
     let loading = true;
     let error = null;
-    let updateInterval: number;
     let mounted = false;
+    let afterKey: any = null;
 
     async function fetchData() {
         if (!mounted) return;
@@ -34,14 +34,14 @@
                 queryParams.append('search', $filters.searchTerm);
             }
 
-            console.log('Fetching with filters:', $filters);
-            console.log('Fetching with params:', queryParams.toString());
+            if (afterKey) {
+                queryParams.append('afterKey', JSON.stringify(afterKey));
+            }
 
             const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
             
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const result = await response.json();
@@ -51,7 +51,15 @@
             }
 
             correlations = result.data;
+            afterKey = result.afterKey;
             error = null;
+            
+            pagination.update(p => ({
+                ...p,
+                total: result.total,
+                hasMore: result.hasMore
+            }));
+
         } catch (e) {
             console.error('Fetch error:', e);
             error = e instanceof Error ? e.message : 'An error occurred';
@@ -61,27 +69,13 @@
         }
     }
 
-    const startPolling = () => {
-        updateInterval = setInterval(fetchData, 30000);
-    };
-
     onMount(() => {
         mounted = true;
         fetchData();
-        startPolling();
     });
 
-    onDestroy(() => {
-        if (updateInterval) {
-            clearInterval(updateInterval);
-        }
-    });
-
-    $: {
-        if (mounted) {
-            console.log('Filters changed:', $filters);
-            fetchData();
-        }
+    $: if (mounted && $filters) {
+        fetchData();
     }
 </script>
 
