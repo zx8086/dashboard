@@ -2,7 +2,7 @@
 
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { filters, pagination } from '../stores/dashboard';
+    import { filters } from '../stores/dashboard';
     import StatusBadge from './StatusBadge.svelte';
     import ApplicationsList from './ApplicationsList.svelte';
     import DashboardFilters from './DashboardFilters.svelte';
@@ -11,7 +11,6 @@
     let loading = true;
     let error = null;
     let mounted = false;
-    let afterKey: any = null;
 
     async function fetchData() {
         if (!mounted) return;
@@ -34,10 +33,6 @@
                 queryParams.append('search', $filters.searchTerm);
             }
 
-            if (afterKey) {
-                queryParams.append('afterKey', JSON.stringify(afterKey));
-            }
-
             const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
             
             if (!response.ok) {
@@ -45,20 +40,8 @@
             }
             
             const result = await response.json();
-            
-            if (!result.data) {
-                throw new Error('Invalid response format');
-            }
-
             correlations = result.data;
-            afterKey = result.afterKey;
             error = null;
-            
-            pagination.update(p => ({
-                ...p,
-                total: result.total,
-                hasMore: result.hasMore
-            }));
 
         } catch (e) {
             console.error('Fetch error:', e);
@@ -88,29 +71,29 @@
 
     <DashboardFilters />
 
-    {#if loading}
-        <div class="flex justify-center items-center h-64">
-            <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900">
-                <span class="sr-only">Loading...</span>
+    <div class="overflow-auto" style="height: calc(100vh - 200px)">
+        {#if loading && correlations.length === 0}
+            <div class="flex justify-center items-center h-64">
+                <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900">
+                    <span class="sr-only">Loading...</span>
+                </div>
             </div>
-        </div>
-    {:else if error}
-        <div class="text-red-500 p-4 bg-red-50 rounded m-4">
-            <p class="font-bold">Error loading data:</p>
-            <p>{error}</p>
-            <button 
-                class="mt-2 px-4 py-2 bg-red-100 hover:bg-red-200 rounded"
-                on:click={fetchData}
-            >
-                Retry
-            </button>
-        </div>
-    {:else if correlations.length === 0}
-        <div class="text-gray-500 p-4 text-center">
-            No results found
-        </div>
-    {:else}
-        <div class="overflow-x-auto">
+        {:else if error}
+            <div class="text-red-500 p-4 bg-red-50 rounded m-4">
+                <p class="font-bold">Error loading data:</p>
+                <p>{error}</p>
+                <button 
+                    class="mt-2 px-4 py-2 bg-red-100 hover:bg-red-200 rounded"
+                    on:click={() => fetchData()}
+                >
+                    Retry
+                </button>
+            </div>
+        {:else if correlations.length === 0}
+            <div class="text-gray-500 p-4 text-center">
+                No results found
+            </div>
+        {:else}
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -126,7 +109,9 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {#each correlations as row}
                         <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.key}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {row.key}
+                            </td>
                             <td class="px-6 py-4">
                                 <ApplicationsList applications={row.applications.buckets} />
                             </td>
@@ -149,6 +134,12 @@
                     {/each}
                 </tbody>
             </table>
-        </div>
-    {/if}
+
+            {#if correlations.length > 0}
+                <div class="py-4 text-center text-gray-500 text-sm border-t">
+                    <p>End of results - {correlations.length} entries found</p>
+                </div>
+            {/if}
+        {/if}
+    </div>
 </div>

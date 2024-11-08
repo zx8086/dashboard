@@ -102,7 +102,6 @@ verifyClientConnection(elasticClient).catch((error) => {
 });
 
 export const getCorrelations = async (params: QueryParams = {}) => {
-    console.log('Received params:', params);
     try {
         const must: any[] = [
             {
@@ -133,13 +132,6 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             });
         }
 
-        // Calculate after key based on current page
-        const afterKey = params.page > 1 ? { 
-            correlation: getLastCorrelationId(params.page - 1) // You'll need to maintain this state
-        } : undefined;
-
-        const pageSize = params.pageSize || 50;
-
         const result = await elasticClient.search({
             index: "logs-mulesoft-default",
             size: 0,
@@ -148,19 +140,10 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             },
             aggs: {
                 correlations: {
-                    composite: {
-                        size: pageSize,
-                        sources: [
-                            {
-                                correlation: {
-                                    terms: {
-                                        field: "correlationId",
-                                        order: "desc"
-                                    }
-                                }
-                            }
-                        ],
-                        after: afterKey
+                    terms: {
+                        field: "correlationId",
+                        size: 2000,
+                        order: { "start_time": "desc" }
                     },
                     aggs: {
                         applications: {
@@ -243,27 +226,18 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             }
         });
 
-        const buckets = result.aggregations?.correlations?.buckets || [];
-        const afterKeyResponse = result.aggregations?.correlations?.after_key;
-
-        // Filter by status if needed
-        const filteredBuckets = params.status !== undefined && params.status !== null
-            ? buckets.filter(bucket => 
+        let buckets = result.aggregations?.correlations?.buckets || [];
+        
+        if (params.status !== undefined && params.status !== null) {
+            buckets = buckets.filter(bucket => 
                 bucket.overall_status && 
                 bucket.overall_status.value === params.status
-            )
-            : buckets;
-
-        // Store the last correlation ID for next page
-        if (afterKeyResponse) {
-            storeLastCorrelationId(params.page, afterKeyResponse.correlation);
+            );
         }
 
         return {
-            data: filteredBuckets,
-            total: result.aggregations?.correlations?.buckets?.length || 0,
-            hasMore: !!afterKeyResponse,
-            afterKey: afterKeyResponse
+            data: buckets,
+            total: buckets.length
         };
 
     } catch (error) {
