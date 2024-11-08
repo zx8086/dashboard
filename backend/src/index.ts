@@ -15,8 +15,6 @@ app.use(express.json());
 app.get("/api/correlations", async (req: express.Request, res: express.Response) => {
   try {
     console.log('Raw query params:', req.query);
-    console.log('Environment param type:', typeof req.query.environment);
-    console.log('Environment value:', req.query.environment);
 
     const params = validateQueryParams({
       timeRange: req.query.timeRange as string,
@@ -33,6 +31,9 @@ app.get("/api/correlations", async (req: express.Request, res: express.Response)
 
     console.log('Post-validation params:', params);
     const result = await getCorrelations(params);
+    console.log('Response data length:', result.data?.length);
+    console.log('Response total:', result.total);
+    
     res.json(result);
   } catch (error) {
     console.error('API error:', error);

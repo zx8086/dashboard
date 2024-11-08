@@ -117,7 +117,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         if (params.environment) {
             must.push({
                 term: {
-                    "environment": params.environment.toLowerCase()
+                    "environment": params.environment
                 }
             });
         }
@@ -126,7 +126,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             must.push({
                 wildcard: {
                     "applicationName": {
-                        value: `*${params.application.toLowerCase()}*`
+                        value: `*${params.application}*`
                     }
                 }
             });
@@ -182,7 +182,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 correlations: {
                     terms: {
                         field: "correlationId",
-                        size: 2000,  // Back to 2000 results
+                        size: 2000,
                         order: { "start_time": "desc" }
                     },
                     aggs: {

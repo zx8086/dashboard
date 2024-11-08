@@ -6,11 +6,25 @@
     import StatusBadge from './StatusBadge.svelte';
     import ApplicationsList from './ApplicationsList.svelte';
     import DashboardFilters from './DashboardFilters.svelte';
+    import TotalEntries from './TotalEntries.svelte';
     
     let correlations = [];
     let loading = true;
+    let loadingMore = false;
     let error = null;
     let mounted = false;
+    let hasMore = true;
+    let lastKey: string | null = null;
+    let container: HTMLElement;
+    let totalEntries = 0;
+
+    onMount(() => {
+        mounted = true;
+        fetchData();
+        return () => {
+            mounted = false;
+        };
+    });
 
     async function fetchData() {
         if (!mounted) return;
@@ -19,8 +33,11 @@
             loading = true;
             const queryParams = new URLSearchParams();
             
+            // Add required filters
             queryParams.append('timeRange', $filters.timeRange);
+            queryParams.append('environment', $filters.environment);
             
+            // Add optional filters only if they have values
             if ($filters.status !== null) {
                 queryParams.append('status', $filters.status.toString());
             }
@@ -33,24 +50,7 @@
                 queryParams.append('search', $filters.searchTerm);
             }
 
-            if ($filters.environment) {
-                queryParams.append('environment', $filters.environment);
-            }
-
-            if ($filters.organization) {
-                queryParams.append('organization', $filters.organization);
-            }
-            
-            if ($filters.domain) {
-                queryParams.append('domain', $filters.domain);
-            }
-            
-            if ($filters.interfaceId) {
-                queryParams.append('interfaceId', $filters.interfaceId);
-            }
-
             const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
-            
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -58,22 +58,56 @@
             const result = await response.json();
             correlations = result.data;
             error = null;
-
-        } catch (e) {
-            console.error('Fetch error:', e);
-            error = e instanceof Error ? e.message : 'An error occurred';
+        } catch (err) {
+            console.error('Error fetching data:', err);
+            error = err instanceof Error ? err.message : 'Failed to fetch results';
             correlations = [];
         } finally {
             loading = false;
         }
     }
 
-    onMount(() => {
-        mounted = true;
-        fetchData();
-    });
+    async function loadMore() {
+        if (loadingMore || !hasMore) return;
+        
+        try {
+            loadingMore = true;
+            const currentLength = correlations.length;
+            
+            const response = await fetch(`http://localhost:3007/api/correlations?${new URLSearchParams({
+                ...Object.fromEntries(Object.entries($filters).filter(([_, v]) => v != null)),
+                lastKey: lastKey
+            })}`);
+            
+            const data = await response.json();
+            
+            if (data.aggregations?.correlations?.buckets) {
+                const newItems = data.aggregations.correlations.buckets;
+                correlations = [...correlations, ...newItems];
+                lastKey = newItems[newItems.length - 1]?.key;
+                hasMore = newItems.length > 0;
+            }
+        } catch (err) {
+            console.error('Error loading more:', err);
+        } finally {
+            loadingMore = false;
+        }
+    }
+
+    function handleScroll(e: Event) {
+        const target = e.target as HTMLElement;
+        const threshold = 100;
+        if (
+            target.scrollHeight - (target.scrollTop + target.clientHeight) < threshold &&
+            !loadingMore &&
+            hasMore
+        ) {
+            loadMore();
+        }
+    }
 
     $: if (mounted && $filters) {
+        console.log('Filters changed:', $filters);
         fetchData();
     }
 </script>
@@ -81,7 +115,7 @@
 <div class="w-full bg-white shadow-lg rounded-lg">
     <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
         <h3 class="text-lg leading-6 font-medium text-gray-900">
-            Transaction Analysis - {correlations.length} Entries
+            Transaction Analysis - {totalEntries} Entries
         </h3>
     </div>
 
@@ -150,12 +184,6 @@
                     {/each}
                 </tbody>
             </table>
-
-            {#if correlations.length > 0}
-                <div class="py-4 text-center text-gray-500 text-sm border-t">
-                    <p>End of results - {correlations.length} entries found</p>
-                </div>
-            {/if}
         {/if}
     </div>
 </div>

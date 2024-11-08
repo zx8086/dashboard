@@ -14,6 +14,7 @@ export interface QueryParams {
   environment?: string;
   organization?: string;
   domain?: string;
+  lastKey?: string;
 }
 
 export const validateQueryParams = (params: Partial<QueryParams>): QueryParams => {
@@ -28,7 +29,8 @@ export const validateQueryParams = (params: Partial<QueryParams>): QueryParams =
     search: params.search || undefined,
     environment: params.environment || undefined,
     organization: params.organization || undefined,
-    domain: params.domain || undefined
+    domain: params.domain || undefined,
+    lastKey: params.lastKey || undefined
   };
 };
 
