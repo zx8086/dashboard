@@ -8,6 +8,7 @@
     import DashboardFilters from './DashboardFilters.svelte';
     import TotalEntries from './TotalEntries.svelte';
     import { formatElapsedTime } from '../utils/time';
+    import AutoRefresh from './AutoRefresh.svelte';
     
     let correlations = [];
     let loading = true;
@@ -19,6 +20,7 @@
     let container: HTMLElement;
     let totalEntries = 0;
     let totalUnfiltered = 0;
+    let isScrolling = false;
 
     // Add type safety for elapsed_time_ms
     interface ElapsedTime {
@@ -116,6 +118,18 @@
                 queryParams.append('search', $filters.searchTerm);
             }
 
+            if ($filters.organization) {
+                queryParams.append('organization', $filters.organization);
+            }
+
+            if ($filters.domain) {
+                queryParams.append('domain', $filters.domain);
+            }
+
+            if ($filters.interfaceId) {
+                queryParams.append('interfaceId', $filters.interfaceId);
+            }
+
             // Add lastKey for pagination
             if (lastKey) {
                 queryParams.append('lastKey', lastKey);
@@ -133,6 +147,11 @@
             } else {
                 hasMore = false;
             }
+
+            // Update total entries if provided in response
+            if (result.total?.value !== undefined) {
+                totalEntries = result.total.value;
+            }
         } catch (err) {
             console.error('Error loading more:', err);
             hasMore = false;
@@ -141,13 +160,26 @@
         }
     }
 
+    let scrollTimeout: NodeJS.Timeout;
+    
     function handleScroll(e: Event) {
         const target = e.target as HTMLElement;
         const threshold = 100;
+        
+        // Set scrolling state
+        isScrolling = true;
+        clearTimeout(scrollTimeout);
+        
+        scrollTimeout = setTimeout(() => {
+            isScrolling = false;
+        }, 150); // Reset after 150ms of no scrolling
+
+        // Check if we've reached the bottom and there's more data to load
         if (
             target.scrollHeight - (target.scrollTop + target.clientHeight) < threshold &&
             !loadingMore &&
-            hasMore
+            hasMore &&
+            correlations.length < totalEntries
         ) {
             loadMore();
         }
@@ -156,6 +188,9 @@
     $: {
         if (mounted && $filters) {
             console.log('Filters changed:', $filters);
+            lastKey = null;
+            hasMore = true;
+            correlations = [];
             fetchData();
         }
     }
@@ -173,6 +208,11 @@
     </div>
 
     <DashboardFilters />
+    
+    <AutoRefresh 
+        onRefresh={fetchData} 
+        isPaused={isScrolling || loadingMore}
+    />
 
     <div 
         class="overflow-auto" 
@@ -251,9 +291,9 @@
             <div class="text-center py-4">
                 {#if loadingMore}
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                {:else if !hasMore}
+                {:else if correlations.length >= totalEntries || !hasMore}
                     <p class="text-gray-500">
-                        {correlations.length === 0 ? 'No results found' : 'End of results'}
+                        {correlations.length === 0 ? 'No results found' : `End of results - Showing ${correlations.length} of ${totalEntries} entries`}
                     </p>
                 {/if}
             </div>
