@@ -5,6 +5,7 @@
     import { filters } from '../stores/dashboard';
     
     const timeRangeOptions = [
+        { value: '5m', label: 'Last 5 minutes' },
         { value: '15m', label: 'Last 15 minutes' },
         { value: '1h', label: 'Last hour' },
         { value: '3h', label: 'Last 3 hours' },
@@ -22,7 +23,7 @@
 
     const environmentOptions = [
         { value: 'dev', label: 'Development' },
-        { value: 'qa', label: 'QA' },
+        { value: 'qa', label: 'Quality Assurance' },
         { value: 'preprod', label: 'Pre-Production' },
         { value: 'prod', label: 'Production' }
     ];
