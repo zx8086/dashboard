@@ -89,15 +89,15 @@
             />
         </div>
 
-        <!-- Search -->
+        <!-- Correlation ID -->
         <div>
-            <label for="searchTerm" class="block text-sm font-medium text-gray-700">Search</label>
+            <label for="correlationId" class="block text-sm font-medium text-gray-700">Correlation ID</label>
             <input 
-                id="searchTerm"
+                id="correlationId"
                 type="text" 
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Search correlation IDs..."
-                bind:value={$filters.searchTerm}
+                placeholder="Search by correlation ID..."
+                bind:value={$filters.correlationId}
             />
         </div>
 

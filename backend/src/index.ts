@@ -17,7 +17,7 @@ app.get("/api/correlations", async (req: express.Request, res: express.Response)
       environment: req.query.environment as string,
       status: req.query.status ? parseInt(req.query.status as string) : undefined,
       application: req.query.application as string,
-      searchTerm: req.query.search as string,
+      correlationId: req.query.correlationId as string,
       organization: req.query.organization as string,
       domain: req.query.domain as string,
       interfaceId: req.query.interfaceId as string,

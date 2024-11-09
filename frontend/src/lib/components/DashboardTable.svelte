@@ -67,6 +67,13 @@
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
             const result = await response.json();
+            console.log('Response data:', {
+                totalRecords: result.total?.value || 0,
+                currentPageSize: result.data?.length || 0,
+                hasMorePages: result.nextKey !== null,
+                nextKey: result.nextKey,
+                currentCorrelationsCount: correlations.length
+            });
             
             if (result.data) {
                 correlations = resetPage ? result.data : [...correlations, ...result.data];
@@ -172,12 +179,12 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Correlation ID</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Applications</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Interface ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Domain</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Organization</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Start Time</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">End Time</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Elapsed Time</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Domain</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Organization</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -191,6 +198,12 @@
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
                                 {row.interface_id?.buckets[0]?.key || 'N/A'}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                {row.interface_domain?.buckets[0]?.key || 'No Domain'}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                {row.interface_org?.buckets[0]?.key || 'No Organization'}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
                                 {#if row.start_time?.value}
@@ -219,12 +232,6 @@
                                 {:else}
                                     <pre>{JSON.stringify(row, null, 2)}</pre>
                                 {/if}
-                            </td>
-                            <td class="px-6 py-4 text-sm text-gray-500">
-                                {row.interface_domain?.buckets[0]?.key || 'No Domain'}
-                            </td>
-                            <td class="px-6 py-4 text-sm text-gray-500">
-                                {row.interface_org?.buckets[0]?.key || 'No Organization'}
                             </td>
                         </tr>
                     {/each}

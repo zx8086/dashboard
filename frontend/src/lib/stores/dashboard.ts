@@ -6,7 +6,7 @@ export interface FilterState {
     timeRange: string;
     status: number | null;
     application: string;
-    searchTerm: string;
+    correlationId: string;
     environment: string;
     organization: string;
     domain: string;
@@ -29,7 +29,7 @@ export const filters = writable<FilterState>({
     timeRange: '15m',
     status: null,
     application: '',
-    searchTerm: '',
+    correlationId: '',
     environment: 'preprod',
     organization: '',
     domain: '',
@@ -47,7 +47,7 @@ export const apiFilters = derived(filters, $filters => {
     // Only add other filters if they have values
     if ($filters.status !== null) params.status = $filters.status;
     if ($filters.application) params.application = $filters.application;
-    if ($filters.searchTerm) params.search = $filters.searchTerm;
+    if ($filters.correlationId) params.correlationId = $filters.correlationId;
     if ($filters.organization) params.organization = $filters.organization;
     if ($filters.domain) params.domain = $filters.domain;
     if ($filters.interfaceId) params.interfaceId = $filters.interfaceId;
@@ -57,7 +57,7 @@ export const apiFilters = derived(filters, $filters => {
 
 export const pagination = writable<PaginationState>({
     page: 1,
-    pageSize: 20,
+    pageSize: 100,
     total: 0
 });
 

@@ -1,8 +1,8 @@
 // backend/src/elastic.ts
 
 import { Client } from "@elastic/elasticsearch";
-import type { QueryParams } from "./types.ts";
-import { validateQueryParams } from './types';
+import type { validateQueryParams, QueryParams } from "./types.ts";
+// import { validateQueryParams } from './types';
 
 type SearchResponse<T, A> = {
     took?: number;
@@ -129,9 +129,6 @@ const getTimeRangeSettings = (timeRange: string) => {
 };
 
 export const getCorrelations = async (params: QueryParams = {}) => {
-    const startTime = performance.now();
-    console.log('Raw query params:', params);
-    
     try {
         const must: any[] = [
             {
@@ -145,9 +142,30 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         ];
 
         if (params.environment) {
+            must.push({ term: { "environment": params.environment } });
+        }
+
+        if (params.status === 0) {
             must.push({
-                term: {
-                    "environment": params.environment
+                bool: {
+                    must: [
+                        {
+                            term: {
+                                "tracePoint.keyword": "EXCEPTION"
+                            }
+                        }
+                    ]
+                }
+            });
+        }
+
+        if (params.correlationId) {
+            must.push({
+                wildcard: {
+                    "correlationId": {
+                        value: `*${params.correlationId}*`,
+                        case_insensitive: true
+                    }
                 }
             });
         }
@@ -163,7 +181,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 correlations: {
                     terms: {
                         field: "correlationId",
-                        size: params.pageSize || 20,
+                        size: params.pageSize || 100,
                         order: { "start_time": "desc" }
                     },
                     aggs: {
@@ -225,7 +243,6 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             }
         };
 
-        // Add status filter if specified
         if (typeof params.status === 'number') {
             searchParams.aggs.correlations.aggs.status_filter = {
                 bucket_selector: {
@@ -237,19 +254,13 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             };
         }
 
-        // Debug logs
-        // console.log('Elasticsearch query:', JSON.stringify(searchParams, null, 2));
-        
+        console.log('Status filter debug:', {
+            statusRequested: params.status,
+            queryStructure: JSON.stringify(searchParams.aggs.correlations.aggs, null, 2)
+        });
+
         const response = await elasticClient.search(searchParams);
         
-        // Debug logs for response
-        // console.log('Elasticsearch response first bucket:', 
-        //     JSON.stringify(response.aggregations?.correlations?.buckets?.[0], null, 2)
-        // );
-        
-        const executionTime = performance.now() - startTime;
-        console.log(`Query executed in ${executionTime}ms`);
-
         return {
             data: response.aggregations?.correlations?.buckets || [],
             total: response.hits.total,
@@ -257,7 +268,6 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 ? response.aggregations.correlations.buckets[response.aggregations.correlations.buckets.length - 1].key 
                 : null
         };
-
     } catch (error) {
         console.error('Elasticsearch error:', error);
         throw error;

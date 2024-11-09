@@ -10,7 +10,7 @@ export interface QueryParams {
   application?: string;
   interfaceId?: string;
   businessEntity?: string;
-  search?: string;
+  correlationId?: string;
   environment?: string;
   organization?: string;
   domain?: string;
@@ -21,12 +21,12 @@ export const validateQueryParams = (params: Partial<QueryParams>): QueryParams =
   return {
     timeRange: params.timeRange || '15m',  // Default is now explicitly 15m
     page: params.page || 1,
-    pageSize: params.pageSize || 20,
+    pageSize: params.pageSize || 200,
     status: typeof params.status === 'number' ? params.status : undefined,
     application: params.application || undefined,
     interfaceId: params.interfaceId || undefined,
     businessEntity: params.businessEntity || undefined,
-    search: params.search || undefined,
+    correlationId: params.correlationId || undefined,
     environment: params.environment || undefined,
     organization: params.organization || undefined,
     domain: params.domain || undefined,
