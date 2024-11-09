@@ -43,6 +43,15 @@ export interface CorrelationBucket {
   interface_desc: {
     buckets: Array<{ key: string; doc_count: number }>;
   };
+  interface_domain: {
+    buckets: Array<{ key: string; doc_count: number }>;
+  };
+  interface_entity_desc: {
+    buckets: Array<{ key: string; doc_count: number }>;
+  };
+  interface_org: {
+    buckets: Array<{ key: string; doc_count: number }>;
+  };
   interface_id: {
     buckets: Array<{ key: string; doc_count: number }>;
   };
@@ -55,26 +64,7 @@ export interface CorrelationBucket {
   has_end: { doc_count: number };
   has_exception: { doc_count: number };
   overall_status: { value: number };
-  elapsed_time_ms: {
-    value: number | null;
-  };
-  app_statuses: {
-    by_app: {
-      buckets: Array<{
-        key: string;
-        doc_count: number;
-        has_start: { doc_count: number };
-        has_end: { doc_count: number };
-        has_exception: { doc_count: number };
-      }>;
-    };
-    apps_with_start: {
-      distinct_apps: { value: number };
-    };
-    apps_with_end: {
-      distinct_apps: { value: number };
-    };
-  };
+  elapsed_time_ms: { value: number };
 }
 
 export interface CustomAggregations {
@@ -94,3 +84,13 @@ export type EnrichedSearchResult = estypes.SearchResponse<unknown> & {
   };
   aggregations?: CustomAggregations;
 };
+
+export interface PaginationResponse {
+    data: CorrelationBucket[];
+    total: {
+        value: number;
+        relation: 'eq' | 'gte';
+    };
+    nextKey: string | null;
+    hasMore: boolean;
+}

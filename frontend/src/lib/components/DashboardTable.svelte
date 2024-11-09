@@ -6,80 +6,70 @@
     import StatusBadge from './StatusBadge.svelte';
     import ApplicationsList from './ApplicationsList.svelte';
     import DashboardFilters from './DashboardFilters.svelte';
-    import TotalEntries from './TotalEntries.svelte';
-    import { formatElapsedTime } from '../utils/time';
     import AutoRefresh from './AutoRefresh.svelte';
-    
-    let correlations = [];
+    import { formatElapsedTime } from '../utils/time';
+
+    let correlations: any[] = [];
     let loading = true;
-    let loadingMore = false;
-    let error = null;
-    let mounted = false;
+    let error: string | null = null;
     let hasMore = true;
     let lastKey: string | null = null;
-    let container: HTMLElement;
+    let loadingMore = false;
     let totalEntries = 0;
     let totalUnfiltered = 0;
     let isScrolling = false;
+    let container: HTMLElement;
 
-    // Add type safety for elapsed_time_ms
-    interface ElapsedTime {
-        value: number;
+    function handleRefresh() {
+        fetchData(true);
     }
 
     onMount(() => {
-        mounted = true;
-        fetchData();
+        fetchData(true);
+        
+        const unsubscribe = filters.subscribe(() => {
+            console.log('Filters changed:', $filters);
+            fetchData(true);
+        });
+
         return () => {
-            mounted = false;
+            unsubscribe();
         };
     });
 
-    async function fetchData() {
-        if (!mounted) return;
-        
+    async function fetchData(resetPage = false) {
         try {
             loading = true;
-            lastKey = null;
-            hasMore = true;
-            correlations = [];
+            error = null;
             
-            // Get total count separately (much faster)
-            const countResponse = await fetch(`http://localhost:3007/api/total-count?timeRange=${$filters.timeRange}&environment=${$filters.environment}`);
-            if (countResponse.ok) {
-                const countResult = await countResponse.json();
-                totalUnfiltered = countResult.total;
+            if (resetPage) {
+                correlations = [];
+                hasMore = true;
+                lastKey = null;
             }
 
-            // Then get the actual data
             const queryParams = new URLSearchParams();
             
-            // Add required filters
-            queryParams.append('timeRange', $filters.timeRange);
-            queryParams.append('environment', $filters.environment);
+            // Add all filters from the store
+            Object.entries($filters).forEach(([key, value]) => {
+                if (value !== null && value !== undefined && value !== '') {
+                    queryParams.append(key, value.toString());
+                }
+            });
             
-            // Add optional filters only if they have values
-            if ($filters.status !== null) {
-                queryParams.append('status', $filters.status.toString());
-            }
-            
-            if ($filters.application) {
-                queryParams.append('application', $filters.application);
-            }
-            
-            if ($filters.searchTerm) {
-                queryParams.append('search', $filters.searchTerm);
+            if (lastKey) {
+                queryParams.append('lastKey', lastKey);
             }
 
+            console.log('Sending filters:', Object.fromEntries(queryParams));
+            
             const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
             const result = await response.json();
             
             if (result.data) {
-                correlations = result.data;
+                correlations = resetPage ? result.data : [...correlations, ...result.data];
                 totalEntries = result.total.value;
                 lastKey = result.nextKey;
                 hasMore = result.nextKey !== null;
@@ -88,111 +78,39 @@
             error = null;
         } catch (err) {
             console.error('Error fetching data:', err);
-            error = err.message;
-            correlations = [];
+            error = err instanceof Error ? err.message : 'Unknown error';
         } finally {
             loading = false;
-        }
-    }
-
-    async function loadMore() {
-        if (loadingMore || !hasMore) return;
-        
-        try {
-            loadingMore = true;
-            const queryParams = new URLSearchParams();
-            
-            // Add all existing filters
-            queryParams.append('timeRange', $filters.timeRange);
-            queryParams.append('environment', $filters.environment);
-            
-            if ($filters.status !== null) {
-                queryParams.append('status', $filters.status.toString());
-            }
-            
-            if ($filters.application) {
-                queryParams.append('application', $filters.application);
-            }
-            
-            if ($filters.searchTerm) {
-                queryParams.append('search', $filters.searchTerm);
-            }
-
-            if ($filters.organization) {
-                queryParams.append('organization', $filters.organization);
-            }
-
-            if ($filters.domain) {
-                queryParams.append('domain', $filters.domain);
-            }
-
-            if ($filters.interfaceId) {
-                queryParams.append('interfaceId', $filters.interfaceId);
-            }
-
-            // Add lastKey for pagination
-            if (lastKey) {
-                queryParams.append('lastKey', lastKey);
-            }
-
-            const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            
-            const result = await response.json();
-            
-            if (result.data?.length) {
-                correlations = [...correlations, ...result.data];
-                lastKey = result.nextKey;
-                hasMore = result.nextKey !== null && correlations.length < totalEntries;
-            } else {
-                hasMore = false;
-            }
-
-            // Update total entries if provided in response
-            if (result.total?.value !== undefined) {
-                totalEntries = result.total.value;
-            }
-        } catch (err) {
-            console.error('Error loading more:', err);
-            hasMore = false;
-        } finally {
             loadingMore = false;
         }
     }
 
-    let scrollTimeout: NodeJS.Timeout;
-    
     function handleScroll(e: Event) {
         const target = e.target as HTMLElement;
         const threshold = 100;
         
-        // Set scrolling state
         isScrolling = true;
         clearTimeout(scrollTimeout);
         
         scrollTimeout = setTimeout(() => {
             isScrolling = false;
-        }, 150); // Reset after 150ms of no scrolling
+        }, 150);
 
-        // Check if we've reached the bottom and there's more data to load
         if (
             target.scrollHeight - (target.scrollTop + target.clientHeight) < threshold &&
             !loadingMore &&
-            hasMore &&
-            correlations.length < totalEntries
+            hasMore
         ) {
             loadMore();
         }
     }
 
-    $: {
-        if (mounted && $filters) {
-            console.log('Filters changed:', $filters);
-            lastKey = null;
-            hasMore = true;
-            correlations = [];
-            fetchData();
-        }
+    let scrollTimeout: NodeJS.Timeout;
+
+    async function loadMore() {
+        if (loadingMore || !hasMore) return;
+        loadingMore = true;
+        await fetchData(false);
     }
 </script>
 
@@ -201,8 +119,15 @@
         <h3 class="text-lg leading-6 font-medium text-gray-900">
             {#if loading && correlations.length === 0}
                 Transaction Analysis - Loading...
+            {:else if totalEntries === 0}
+                Transaction Analysis - No Results Found
             {:else}
-                Transaction Analysis - {totalEntries?.toLocaleString() || '0'} Entries
+                Transaction Analysis - {totalEntries?.toLocaleString()} {totalEntries === 1 ? 'Entry' : 'Entries'}
+                {#if totalUnfiltered > totalEntries}
+                    <span class="text-sm text-gray-500">
+                        (filtered from {totalUnfiltered.toLocaleString()} total)
+                    </span>
+                {/if}
             {/if}
         </h3>
     </div>
@@ -210,13 +135,12 @@
     <DashboardFilters />
     
     <AutoRefresh 
-        onRefresh={fetchData} 
+        onRefresh={handleRefresh} 
         isPaused={isScrolling || loadingMore}
     />
 
     <div 
-        class="overflow-auto" 
-        style="height: calc(100vh - 200px)"
+        class="overflow-auto max-h-screen"
         on:scroll={handleScroll}
         bind:this={container}
     >
@@ -252,6 +176,8 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">End Time</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Elapsed Time</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Domain</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Organization</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -264,13 +190,21 @@
                                 <ApplicationsList applications={row.applications.buckets} />
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                {row.interface_id.buckets[0]?.key || ''}
+                                {row.interface_id?.buckets[0]?.key || 'N/A'}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                {new Date(row.start_time.value).toLocaleString()}
+                                {#if row.start_time?.value}
+                                    {new Date(row.start_time.value).toLocaleString()}
+                                {:else}
+                                    N/A
+                                {/if}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                {new Date(row.end_time.value).toLocaleString()}
+                                {#if row.end_time?.value}
+                                    {new Date(row.end_time.value).toLocaleString()}
+                                {:else}
+                                    N/A
+                                {/if}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
                                 {#if row.elapsed_time_ms?.value !== undefined}
@@ -280,7 +214,17 @@
                                 {/if}
                             </td>
                             <td class="px-6 py-4">
-                                <StatusBadge status={row.overall_status.value} />
+                                {#if row.overall_status}
+                                    <StatusBadge status={row.overall_status.value} />
+                                {:else}
+                                    <pre>{JSON.stringify(row, null, 2)}</pre>
+                                {/if}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                {row.interface_domain?.buckets[0]?.key || 'No Domain'}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                {row.interface_org?.buckets[0]?.key || 'No Organization'}
                             </td>
                         </tr>
                     {/each}
@@ -291,9 +235,13 @@
             <div class="text-center py-4">
                 {#if loadingMore}
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                {:else if correlations.length >= totalEntries || !hasMore}
+                {:else if totalEntries === 0}
                     <p class="text-gray-500">
-                        {correlations.length === 0 ? 'No results found' : `End of results - Showing ${correlations.length} of ${totalEntries} entries`}
+                        No results match your current filters
+                    </p>
+                {:else if !hasMore}
+                    <p class="text-gray-500">
+                        End of results - Showing all {correlations.length} entries
                     </p>
                 {/if}
             </div>

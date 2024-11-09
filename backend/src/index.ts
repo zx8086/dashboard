@@ -2,8 +2,7 @@
 
 import express from "express";
 import cors from "cors";
-import { getCorrelations, getClusterHealth, elasticClient, getPerformanceMetrics } from "./elastic.js";
-import { validateQueryParams } from "./types.js";
+import { getCorrelations } from "./elastic.js";
 
 const app = express();
 const port = 3007;
@@ -11,33 +10,29 @@ const port = 3007;
 app.use(cors());
 app.use(express.json());
 
-// Update the correlations endpoint to use Express Request/Response
 app.get("/api/correlations", async (req: express.Request, res: express.Response) => {
   try {
-    console.log('Raw query params:', req.query);
-
-    const params = validateQueryParams({
-      timeRange: req.query.timeRange as string,
+    const params = {
+      timeRange: req.query.timeRange as string || '15m',
+      environment: req.query.environment as string,
       status: req.query.status ? parseInt(req.query.status as string) : undefined,
       application: req.query.application as string,
-      search: req.query.search as string,
-      environment: req.query.environment as string,
-      interfaceId: req.query.interfaceId as string,
+      searchTerm: req.query.search as string,
       organization: req.query.organization as string,
       domain: req.query.domain as string,
-      page: req.query.page ? parseInt(req.query.page as string) : undefined,
-      pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string) : undefined,
-    });
-
-    console.log('Post-validation params:', params);
-    const result = await getCorrelations(params);
-    console.log('Response data length:', result.data?.length);
-    console.log('Response total:', result.total);
+      interfaceId: req.query.interfaceId as string,
+      lastKey: req.query.lastKey as string
+    };
     
+    console.log('Received query params:', params);
+    const result = await getCorrelations(params);
     res.json(result);
   } catch (error) {
     console.error('API error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ 
+      error: 'Internal Server Error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 

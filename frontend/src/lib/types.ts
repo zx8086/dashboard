@@ -44,4 +44,25 @@ export interface CorrelationData {
     elapsed_time_ms: {
         value: number | null;
     };
+    interface_domain: {
+        buckets: Array<{ key: string; doc_count: number }>;
+    };
+    interface_entity_desc: {
+        buckets: Array<{ key: string; doc_count: number }>;
+    };
+    interface_org: {
+        buckets: Array<{ key: string; doc_count: number }>;
+    };
+    app_statuses: {
+        by_app: {
+            buckets: Array<{
+                key: string;
+                doc_count: number;
+                has_start: { doc_count: number };
+                has_end: { doc_count: number };
+                has_exception: { doc_count: number };
+                status: { value: number };
+            }>;
+        };
+    };
 }

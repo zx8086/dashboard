@@ -28,18 +28,6 @@
         { value: 'prod', label: 'Production' }
     ];
 
-    const organizationOptions = [
-        { value: '', label: 'All Organizations' },
-        { value: 'Global Value Chain', label: 'Global Value Chain' },
-        // Add other organizations as needed
-    ];
-
-    const domainOptions = [
-        { value: '', label: 'All Domains' },
-        { value: 'Supply Chain', label: 'Supply Chain' },
-        // Add other domains as needed
-    ];
-
     function handleStatusChange(event: Event) {
         const select = event.target as HTMLSelectElement;
         const value = select.value;
@@ -49,7 +37,6 @@
         } else {
             $filters.status = parseInt(value, 10);
         }
-        console.log('Status changed to:', $filters.status, typeof $filters.status);
     }
 
     onMount(() => {
@@ -58,12 +45,13 @@
 </script>
 
 <div class="bg-white p-4 mb-4">
-    <div class="grid grid-cols-5 gap-4 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <!-- Time Range -->
         <div>
-            <label class="block text-sm font-medium text-gray-700">Time Range</label>
+            <label for="timeRange" class="block text-sm font-medium text-gray-700">Time Range</label>
             <select 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                id="timeRange"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 bind:value={$filters.timeRange}
             >
                 {#each timeRangeOptions as option}
@@ -74,9 +62,10 @@
 
         <!-- Status -->
         <div>
-            <label class="block text-sm font-medium text-gray-700">Status</label>
+            <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
             <select 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                id="status"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 on:change={handleStatusChange}
                 value={$filters.status === null ? 'null' : $filters.status}
             >
@@ -88,12 +77,13 @@
             </select>
         </div>
 
-        <!-- Application Search -->
+        <!-- Application -->
         <div>
-            <label class="block text-sm font-medium text-gray-700">Application</label>
+            <label for="application" class="block text-sm font-medium text-gray-700">Application</label>
             <input 
+                id="application"
                 type="text" 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 placeholder="Search applications..."
                 bind:value={$filters.application}
             />
@@ -101,20 +91,22 @@
 
         <!-- Search -->
         <div>
-            <label class="block text-sm font-medium text-gray-700">Search</label>
+            <label for="searchTerm" class="block text-sm font-medium text-gray-700">Search</label>
             <input 
+                id="searchTerm"
                 type="text" 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 placeholder="Search correlation IDs..."
                 bind:value={$filters.searchTerm}
             />
         </div>
 
-        <!-- New Environment Filter -->
+        <!-- Environment -->
         <div>
-            <label class="block text-sm font-medium text-gray-700">Environment</label>
+            <label for="environment" class="block text-sm font-medium text-gray-700">Environment</label>
             <select 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                id="environment"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 bind:value={$filters.environment}
             >
                 {#each environmentOptions as option}
@@ -122,15 +114,14 @@
                 {/each}
             </select>
         </div>
-    </div>
 
-    <div class="grid grid-cols-3 gap-4">
         <!-- Organization -->
         <div>
-            <label class="block text-sm font-medium text-gray-700">Organization</label>
+            <label for="organization" class="block text-sm font-medium text-gray-700">Organization</label>
             <input 
+                id="organization"
                 type="text" 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 placeholder="Search organization..."
                 bind:value={$filters.organization}
             />
@@ -138,10 +129,11 @@
 
         <!-- Domain -->
         <div>
-            <label class="block text-sm font-medium text-gray-700">Domain</label>
+            <label for="domain" class="block text-sm font-medium text-gray-700">Domain</label>
             <input 
+                id="domain"
                 type="text" 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 placeholder="Search domain..."
                 bind:value={$filters.domain}
             />
@@ -149,10 +141,11 @@
 
         <!-- Interface ID -->
         <div>
-            <label class="block text-sm font-medium text-gray-700">Interface ID</label>
+            <label for="interfaceId" class="block text-sm font-medium text-gray-700">Interface ID</label>
             <input 
+                id="interfaceId"
                 type="text" 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 placeholder="Search interface ID..."
                 bind:value={$filters.interfaceId}
             />

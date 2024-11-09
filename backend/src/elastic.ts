@@ -2,6 +2,7 @@
 
 import { Client } from "@elastic/elasticsearch";
 import type { QueryParams } from "./types.ts";
+import { validateQueryParams } from './types';
 
 type SearchResponse<T, A> = {
     took?: number;
@@ -129,6 +130,7 @@ const getTimeRangeSettings = (timeRange: string) => {
 
 export const getCorrelations = async (params: QueryParams = {}) => {
     const startTime = performance.now();
+    console.log('Raw query params:', params);
     
     try {
         const must: any[] = [
@@ -150,77 +152,10 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             });
         }
 
-        if (params.application) {
-            must.push({
-                wildcard: {
-                    "applicationName": {
-                        value: `*${params.application}*`
-                    }
-                }
-            });
-        }
-
-        if (params.search) {
-            must.push({
-                wildcard: {
-                    "correlationId": {
-                        value: `*${params.search}*`
-                    }
-                }
-            });
-        }
-
-        if (params.organization) {
-            must.push({
-                wildcard: {
-                    "interface_metadata.org": {
-                        value: `*${params.organization}*`
-                    }
-                }
-            });
-        }
-
-        if (params.domain) {
-            must.push({
-                wildcard: {
-                    "interface_metadata.domain": {
-                        value: `*${params.domain}*`
-                    }
-                }
-            });
-        }
-
-        if (params.interfaceId) {
-            must.push({
-                wildcard: {
-                    "interfaceId": {
-                        value: `*${params.interfaceId}*`
-                    }
-                }
-            });
-        }
-
-        const timeSettings = getTimeRangeSettings(params.timeRange);
-
-        const searchParams: any = {
+        const searchParams = {
             index: "logs-mulesoft-default",
-            size: params.pageSize || 20,
-            track_total_hits: true,  // Keep this enabled
-            sort: [
-                { "@timestamp": "desc" },
-                { "_doc": "asc" }
-            ],
-            request_cache: true,
-            preference: 'cache_preference',
-            allow_partial_search_results: true,
-            timeout: "30s",
-            track_scores: false,
-            pre_filter_shard_size: 128,
-            ...timeSettings,
-            // Add profile and stats for monitoring
-            profile: true,
-            stats: ['correlation-search-group'],
-            
+            size: 0,
+            track_total_hits: true,
             query: {
                 bool: { must }
             },
@@ -228,21 +163,14 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 correlations: {
                     terms: {
                         field: "correlationId",
-                        size: 200,
+                        size: params.pageSize || 20,
                         order: { "start_time": "desc" }
                     },
                     aggs: {
                         applications: {
                             terms: {
                                 field: "applicationName",
-                                size: 10,
-                                collect_mode: "breadth_first"
-                            }
-                        },
-                        interface_desc: {
-                            terms: {
-                                field: "interfaceDesc",
-                                size: 1
+                                size: 10
                             }
                         },
                         interface_id: {
@@ -251,20 +179,14 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                                 size: 1
                             }
                         },
-                        business_entity: {
-                            terms: {
-                                field: "businessEntity",
-                                size: 1
-                            }
-                        },
                         start_time: {
                             min: {
-                                field: "timestamp"
+                                field: "@timestamp"
                             }
                         },
                         end_time: {
                             max: {
-                                field: "timestamp"
+                                field: "@timestamp"
                             }
                         },
                         has_start: {
@@ -291,100 +213,49 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                         overall_status: {
                             bucket_script: {
                                 buckets_path: {
-                                    starts: "has_start._count",
-                                    ends: "has_end._count",
-                                    exceptions: "has_exception._count",
-                                    apps: "applications._bucket_count"
+                                    start: "has_start._count",
+                                    end: "has_end._count",
+                                    exception: "has_exception._count"
                                 },
-                                script: "if (params.exceptions > 0) return 0; if (params.apps == 0) return 3; if (params.starts >= params.apps && params.ends >= params.apps) return 1; if (params.starts > 0) return 2; return 3;"
-                            }
-                        },
-                        elapsed_time_ms: {
-                            bucket_script: {
-                                buckets_path: {
-                                    start: "start_time.value",
-                                    end: "end_time.value"
-                                },
-                                script: "params.end != null && params.start != null ? params.end - params.start : null"
+                                script: "if (params.exception > 0) return 0; if (params.start > 0 && params.end > 0) return 1; if (params.start > 0) return 2; return 3;"
                             }
                         }
                     }
                 }
-            },
-            _source: false,
-            docvalue_fields: [
-                "timestamp",
-                "correlationId",
-                "applicationName",
-                "status"
-            ],
+            }
         };
 
-        // Add search_after if provided
-        if (params.lastKey) {
-            try {
-                searchParams.search_after = JSON.parse(params.lastKey);
-            } catch (e) {
-                console.warn('Invalid search_after key:', e);
-            }
+        // Add status filter if specified
+        if (typeof params.status === 'number') {
+            searchParams.aggs.correlations.aggs.status_filter = {
+                bucket_selector: {
+                    buckets_path: {
+                        status: "overall_status"
+                    },
+                    script: `params.status == ${params.status}`
+                }
+            };
         }
 
-        const result = await elasticClient.search(searchParams);
-
-        // Get the sort values of the last hit for the next search_after
-        const lastHit = result.hits.hits[result.hits.hits.length - 1];
-        const nextSearchAfter = lastHit ? lastHit.sort : null;
-
-        // Calculate execution time
-        const executionTime = performance.now() - startTime;
-
-        // Collect metrics
-        const metrics: QueryMetrics = {
-            took: result.took || 0,
-            totalShards: result._shards.total,
-            successfulShards: result._shards.successful,
-            skippedShards: result._shards.skipped || 0,
-            failedShards: result._shards.failed,
-            timestamp: new Date().toISOString(),
-            params: params,
-            cacheHit: result.profile?.shards[0]?.searches[0]?.rewrite_time === 0
-        };
-
-        // Log metrics
-        console.log('Query Metrics:', {
-            ...metrics,
-            executionTimeMs: executionTime,
-            profileInfo: result.profile,
-        });
-
-        // Store metrics for analysis
-        await storeQueryMetrics(metrics);
-
-        let buckets = result.aggregations?.correlations?.buckets || [];
-        buckets = buckets.map(bucket => ({
-            ...bucket,
-            elapsed_time_ms: {
-                value: bucket.elapsed_time_ms?.value ?? null
-            }
-        }));
+        // Debug logs
+        // console.log('Elasticsearch query:', JSON.stringify(searchParams, null, 2));
         
-        if (params.status !== undefined && params.status !== null) {
-            buckets = buckets.filter(bucket => 
-                bucket.overall_status && 
-                bucket.overall_status.value === params.status
-            );
-        }
-
-        // Add null checks and default values
-        const total = result.hits?.total 
-            ? { value: result.hits.total.value, relation: result.hits.total.relation }
-            : { value: 0, relation: 'eq' };
+        const response = await elasticClient.search(searchParams);
+        
+        // Debug logs for response
+        // console.log('Elasticsearch response first bucket:', 
+        //     JSON.stringify(response.aggregations?.correlations?.buckets?.[0], null, 2)
+        // );
+        
+        const executionTime = performance.now() - startTime;
+        console.log(`Query executed in ${executionTime}ms`);
 
         return {
-            data: buckets,
-            total,
-            nextKey: nextSearchAfter ? JSON.stringify(nextSearchAfter) : null,
-            metrics
+            data: response.aggregations?.correlations?.buckets || [],
+            total: response.hits.total,
+            nextKey: response.aggregations?.correlations?.buckets?.length > 0 
+                ? response.aggregations.correlations.buckets[response.aggregations.correlations.buckets.length - 1].key 
+                : null
         };
 
     } catch (error) {
