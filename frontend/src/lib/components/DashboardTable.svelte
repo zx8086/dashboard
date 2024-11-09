@@ -18,6 +18,7 @@
     let lastKey: string | null = null;
     let container: HTMLElement;
     let totalEntries = 0;
+    let totalUnfiltered = 0;
 
     // Add type safety for elapsed_time_ms
     interface ElapsedTime {
@@ -37,6 +38,18 @@
         
         try {
             loading = true;
+            lastKey = null;
+            hasMore = true;
+            correlations = [];
+            
+            // Get total count separately (much faster)
+            const countResponse = await fetch(`http://localhost:3007/api/total-count?timeRange=${$filters.timeRange}&environment=${$filters.environment}`);
+            if (countResponse.ok) {
+                const countResult = await countResponse.json();
+                totalUnfiltered = countResult.total;
+            }
+
+            // Then get the actual data
             const queryParams = new URLSearchParams();
             
             // Add required filters
@@ -62,14 +75,19 @@
             }
             
             const result = await response.json();
-            correlations = result.data;
-            totalEntries = result.total;
+            
+            if (result.data) {
+                correlations = result.data;
+                totalEntries = result.total.value;
+                lastKey = result.nextKey;
+                hasMore = result.nextKey !== null;
+            }
+
             error = null;
         } catch (err) {
             console.error('Error fetching data:', err);
-            error = err instanceof Error ? err.message : 'Failed to fetch results';
+            error = err.message;
             correlations = [];
-            totalEntries = 0;
         } finally {
             loading = false;
         }
@@ -80,23 +98,44 @@
         
         try {
             loadingMore = true;
-            const currentLength = correlations.length;
+            const queryParams = new URLSearchParams();
             
-            const response = await fetch(`http://localhost:3007/api/correlations?${new URLSearchParams({
-                ...Object.fromEntries(Object.entries($filters).filter(([_, v]) => v != null)),
-                lastKey: lastKey
-            })}`);
+            // Add all existing filters
+            queryParams.append('timeRange', $filters.timeRange);
+            queryParams.append('environment', $filters.environment);
             
-            const data = await response.json();
+            if ($filters.status !== null) {
+                queryParams.append('status', $filters.status.toString());
+            }
             
-            if (data.aggregations?.correlations?.buckets) {
-                const newItems = data.aggregations.correlations.buckets;
-                correlations = [...correlations, ...newItems];
-                lastKey = newItems[newItems.length - 1]?.key;
-                hasMore = newItems.length > 0;
+            if ($filters.application) {
+                queryParams.append('application', $filters.application);
+            }
+            
+            if ($filters.searchTerm) {
+                queryParams.append('search', $filters.searchTerm);
+            }
+
+            // Add lastKey for pagination
+            if (lastKey) {
+                queryParams.append('lastKey', lastKey);
+            }
+
+            const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const result = await response.json();
+            
+            if (result.data?.length) {
+                correlations = [...correlations, ...result.data];
+                lastKey = result.nextKey;
+                hasMore = result.nextKey !== null && correlations.length < totalEntries;
+            } else {
+                hasMore = false;
             }
         } catch (err) {
             console.error('Error loading more:', err);
+            hasMore = false;
         } finally {
             loadingMore = false;
         }
@@ -114,22 +153,33 @@
         }
     }
 
-    $: if (mounted && $filters) {
-        console.log('Filters changed:', $filters);
-        fetchData();
+    $: {
+        if (mounted && $filters) {
+            console.log('Filters changed:', $filters);
+            fetchData();
+        }
     }
 </script>
 
 <div class="w-full bg-white shadow-lg rounded-lg">
     <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
         <h3 class="text-lg leading-6 font-medium text-gray-900">
-            Transaction Analysis - {totalEntries} Entries
+            {#if loading && correlations.length === 0}
+                Transaction Analysis - Loading...
+            {:else}
+                Transaction Analysis - {totalEntries?.toLocaleString() || '0'} Entries
+            {/if}
         </h3>
     </div>
 
     <DashboardFilters />
 
-    <div class="overflow-auto" style="height: calc(100vh - 200px)">
+    <div 
+        class="overflow-auto" 
+        style="height: calc(100vh - 200px)"
+        on:scroll={handleScroll}
+        bind:this={container}
+    >
         {#if loading && correlations.length === 0}
             <div class="flex justify-center items-center h-64">
                 <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900">
@@ -153,15 +203,15 @@
             </div>
         {:else}
             <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+                <thead class="bg-gray-50 sticky top-0 z-10">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Correlation ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applications</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Interface ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Time</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Time</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Elapsed Time</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Correlation ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Applications</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Interface ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Start Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">End Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Elapsed Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Status</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -197,15 +247,14 @@
                 </tbody>
             </table>
             
-            <!-- Add this end-of-results indicator -->
-            <div class="text-center py-4 text-sm text-gray-500 border-t border-gray-200">
+            <!-- Add loading indicator and end message -->
+            <div class="text-center py-4">
                 {#if loadingMore}
-                    <div class="flex justify-center items-center gap-2">
-                        <div class="animate-spin h-4 w-4 border-b-2 border-gray-500 rounded-full"></div>
-                        Loading more...
-                    </div>
-                {:else}
-                    End of results - {totalEntries} entries found
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                {:else if !hasMore}
+                    <p class="text-gray-500">
+                        {correlations.length === 0 ? 'No results found' : 'End of results'}
+                    </p>
                 {/if}
             </div>
         {/if}

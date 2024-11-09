@@ -128,7 +128,6 @@ const getTimeRangeSettings = (timeRange: string) => {
 };
 
 export const getCorrelations = async (params: QueryParams = {}) => {
-    // Start timing
     const startTime = performance.now();
     
     try {
@@ -203,11 +202,15 @@ export const getCorrelations = async (params: QueryParams = {}) => {
 
         const timeSettings = getTimeRangeSettings(params.timeRange);
 
-        const result = await elasticClient.search({
+        const searchParams: any = {
             index: "logs-mulesoft-default",
-            size: 0,
+            size: params.pageSize || 20,
+            track_total_hits: true,  // Keep this enabled
+            sort: [
+                { "@timestamp": "desc" },
+                { "_doc": "asc" }
+            ],
             request_cache: true,
-            track_total_hits: true,
             preference: 'cache_preference',
             allow_partial_search_results: true,
             timeout: "30s",
@@ -225,7 +228,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 correlations: {
                     terms: {
                         field: "correlationId",
-                        size: 2000,
+                        size: 200,
                         order: { "start_time": "desc" }
                     },
                     aggs: {
@@ -315,7 +318,22 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 "applicationName",
                 "status"
             ],
-        });
+        };
+
+        // Add search_after if provided
+        if (params.lastKey) {
+            try {
+                searchParams.search_after = JSON.parse(params.lastKey);
+            } catch (e) {
+                console.warn('Invalid search_after key:', e);
+            }
+        }
+
+        const result = await elasticClient.search(searchParams);
+
+        // Get the sort values of the last hit for the next search_after
+        const lastHit = result.hits.hits[result.hits.hits.length - 1];
+        const nextSearchAfter = lastHit ? lastHit.sort : null;
 
         // Calculate execution time
         const executionTime = performance.now() - startTime;
@@ -357,10 +375,16 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             );
         }
 
+        // Add null checks and default values
+        const total = result.hits?.total 
+            ? { value: result.hits.total.value, relation: result.hits.total.relation }
+            : { value: 0, relation: 'eq' };
+
         return {
             data: buckets,
-            total: buckets.length,
-            metrics // Optionally return metrics to client
+            total,
+            nextKey: nextSearchAfter ? JSON.stringify(nextSearchAfter) : null,
+            metrics
         };
 
     } catch (error) {
@@ -538,4 +562,51 @@ const trackQueryPerformance = (metrics: QueryMetrics) => {
         Cache Hit: ${metrics.cacheHit}
         Shards: ${metrics.successfulShards}/${metrics.totalShards}
     `);
+};
+
+// Add a simple cache for counts
+const countCache = new Map<string, { count: number; timestamp: number }>();
+const CACHE_TTL = 5000; // 5 seconds
+
+export const getTotalCount = async (params: QueryParams) => {
+    const cacheKey = `${params.timeRange}-${params.environment}`;
+    const now = Date.now();
+    const cached = countCache.get(cacheKey);
+
+    if (cached && (now - cached.timestamp) < CACHE_TTL) {
+        return cached.count;
+    }
+
+    const must: any[] = [
+        {
+            range: {
+                "@timestamp": {
+                    gte: `now-${params.timeRange}`,
+                    lte: 'now'
+                }
+            }
+        }
+    ];
+
+    if (params.environment) {
+        must.push({
+            term: {
+                "environment": params.environment
+            }
+        });
+    }
+
+    const result = await elasticClient.count({
+        index: "logs-mulesoft-default",
+        query: {
+            bool: { must }
+        }
+    });
+
+    countCache.set(cacheKey, {
+        count: result.count,
+        timestamp: now
+    });
+
+    return result.count;
 };
