@@ -40,31 +40,28 @@ export interface CorrelationBucket {
   applications: {
     buckets: Array<{ key: string; doc_count: number }>;
   };
-  interface_desc: {
-    buckets: Array<{ key: string; doc_count: number }>;
-  };
   interface_domain: {
-    buckets: Array<{ key: string; doc_count: number }>;
-  };
-  interface_entity_desc: {
-    buckets: Array<{ key: string; doc_count: number }>;
-  };
-  interface_org: {
     buckets: Array<{ key: string; doc_count: number }>;
   };
   interface_id: {
     buckets: Array<{ key: string; doc_count: number }>;
   };
-  business_entity: {
+  interface_org?: {
     buckets: Array<{ key: string; doc_count: number }>;
   };
-  start_time: { value: number };
-  end_time: { value: number };
+  start_event: {
+    doc_count: number;
+    start_time: { value: number | null };
+  };
+  end_event: {
+    doc_count: number;
+    end_time: { value: number | null };
+  };
   has_start: { doc_count: number };
   has_end: { doc_count: number };
   has_exception: { doc_count: number };
   overall_status: { value: number };
-  elapsed_time_ms: { value: number };
+  elapsed_time_ms?: { value: number };
 }
 
 export interface CustomAggregations {

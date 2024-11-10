@@ -208,7 +208,11 @@
                                 {row.interface_domain?.buckets[0]?.key || 'No Domain'}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                {row.interface_org?.buckets[0]?.key || 'No Organization'}
+                                {#if row.interface_org?.buckets[0]?.key}
+                                    {row.interface_org.buckets[0].key}
+                                {:else}
+                                    No Organization
+                                {/if}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
                                 {#if row.start_event?.start_time?.value}

@@ -163,7 +163,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         must.push({ term: { "interface_metadata.domain": params.domain } });
     }
     if (params.organization) {
-        must.push({ term: { "organization": params.organization } });
+      must.push({ term: { "interface_metadata.org": params.organization } });
     }
     if (params.correlationId) {
         must.push({ wildcard: { 
@@ -198,6 +198,12 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                     interface_domain: {
                         terms: {
                             field: "interface_metadata.domain",
+                            size: 1
+                        }
+                    },
+                    interface_org: {
+                        terms: {
+                            field: "interface_metadata.org",
                             size: 1
                         }
                     },
@@ -300,6 +306,12 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                     interface_domain: {
                         terms: {
                             field: "interface_metadata.domain",
+                            size: 1
+                        }
+                    },
+                    interface_org: {
+                        terms: {
+                            field: "interface_metadata.org",
                             size: 1
                         }
                     },
