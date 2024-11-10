@@ -145,20 +145,6 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             must.push({ term: { "environment": params.environment } });
         }
 
-        if (params.status === 0) {
-            must.push({
-                bool: {
-                    must: [
-                        {
-                            term: {
-                                "tracePoint.keyword": "EXCEPTION"
-                            }
-                        }
-                    ]
-                }
-            });
-        }
-
         if (params.correlationId) {
             must.push({
                 wildcard: {
@@ -169,6 +155,22 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 }
             });
         }
+
+        // Add search filters
+        if (params.application) {
+            must.push({ term: { "applicationName": params.application } });
+        }
+
+        if (params.domain) {
+            must.push({ term: { "interface_metadata.domain": params.domain } });
+        }
+
+        if (params.interfaceId) {
+            must.push({ term: { "interfaceId": params.interfaceId } });
+        }
+
+        // Add pagination using search_after
+        const searchAfter = params.lastKey ? [params.lastKey] : undefined;
 
         const searchParams = {
             index: "logs-mulesoft-default",
@@ -194,6 +196,18 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                         interface_id: {
                             terms: {
                                 field: "interfaceId",
+                                size: 1
+                            }
+                        },
+                        interface_domain: {
+                            terms: {
+                                field: "interfaceDomain",
+                                size: 1
+                            }
+                        },
+                        interface_org: {
+                            terms: {
+                                field: "interfaceOrg",
                                 size: 1
                             }
                         },
@@ -237,12 +251,22 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                                 },
                                 script: "if (params.exception > 0) return 0; if (params.start > 0 && params.end > 0) return 1; if (params.start > 0) return 2; return 3;"
                             }
+                        },
+                        elapsed_time_ms: {
+                            bucket_script: {
+                                buckets_path: {
+                                    start: "start_time.value",
+                                    end: "end_time.value"
+                                },
+                                script: "if (params.start == null || params.end == null) { return null } return params.end - params.start"
+                            }
                         }
                     }
                 }
             }
         };
 
+        // Add status filter if specified
         if (typeof params.status === 'number') {
             searchParams.aggs.correlations.aggs.status_filter = {
                 bucket_selector: {
@@ -253,11 +277,6 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                 }
             };
         }
-
-        console.log('Status filter debug:', {
-            statusRequested: params.status,
-            queryStructure: JSON.stringify(searchParams.aggs.correlations.aggs, null, 2)
-        });
 
         const response = await elasticClient.search(searchParams);
         

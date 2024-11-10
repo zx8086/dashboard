@@ -2,7 +2,7 @@
     import { refreshState } from '../stores/dashboard';
     import { onMount, onDestroy } from 'svelte';
 
-    const REFRESH_INTERVAL = 3 * 60 * 1000; // 3 minutes
+    const REFRESH_INTERVAL = 1 * 60 * 1000; // 3 minutes
     let intervalId: NodeJS.Timeout | null = null;
 
     export let onRefresh: () => void;

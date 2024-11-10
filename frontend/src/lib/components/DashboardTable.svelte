@@ -106,7 +106,8 @@
         if (
             target.scrollHeight - (target.scrollTop + target.clientHeight) < threshold &&
             !loadingMore &&
-            hasMore
+            hasMore &&
+            correlations.length < totalEntries
         ) {
             loadMore();
         }
@@ -115,9 +116,14 @@
     let scrollTimeout: NodeJS.Timeout;
 
     async function loadMore() {
-        if (loadingMore || !hasMore) return;
+        if (loadingMore || correlations.length >= totalEntries) return;
+        
         loadingMore = true;
         await fetchData(false);
+        
+        // Update hasMore based on whether we've reached total entries
+        hasMore = correlations.length < totalEntries;
+        loadingMore = false;
     }
 </script>
 
@@ -239,16 +245,17 @@
             </table>
             
             <!-- Add loading indicator and end message -->
-            <div class="text-center py-4">
-                {#if loadingMore}
+            <div class="text-center py-4 text-sm text-gray-500">
+                {#if totalEntries === 0}
+                    <p>No results match your current filters</p>
+                {:else if loadingMore}
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                {:else if totalEntries === 0}
-                    <p class="text-gray-500">
-                        No results match your current filters
-                    </p>
-                {:else if !hasMore}
-                    <p class="text-gray-500">
-                        End of results - Showing all {correlations.length} entries
+                {:else}
+                    <p>
+                        Showing {correlations.length} of {totalEntries} entries
+                        {#if correlations.length >= totalEntries}
+                            (End of results)
+                        {/if}
                     </p>
                 {/if}
             </div>
