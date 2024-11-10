@@ -124,6 +124,8 @@ interface QueryMetrics {
     timestamp: string;
     params: QueryParams;
     cacheHit?: boolean;
+    executionTimeMs?: number;
+    total?: number;
 }
 
 // Add time range specific settings
@@ -140,6 +142,31 @@ const getTimeRangeSettings = (timeRange: string) => {
     };
 };
 
+// Add debug logging utility
+const DEBUG = process.env.DEBUG === 'true';
+const debugLog = (message: string, data?: any, type: 'query' | 'response' | 'filter' = 'query') => {
+    if (DEBUG) {
+        const prefix = {
+            query: '🔍 QUERY',
+            response: '📊 RESPONSE',
+            filter: '🎯 FILTER'
+        }[type];
+        
+        console.log(`${prefix}: ${message}`);
+        if (data) {
+            console.log(JSON.stringify(data, null, 2));
+        }
+    }
+};
+
+// Add sanitization utility
+const sanitizeFilterValue = (value: string): string => {
+    return value
+        .trim()
+        .replace(/[\t\n\r]/g, '')  // Remove all whitespace characters
+        .replace(/\s+/g, ' ');     // Normalize spaces
+};
+
 export const getCorrelations = async (params: QueryParams = {}) => {
     const must: any[] = [
         {
@@ -152,7 +179,6 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         }
     ];
 
-    // Add all filters if they exist
     if (params.environment) {
         must.push({ term: { "environment": params.environment } });
     }
@@ -163,24 +189,20 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         must.push({ term: { "interface_metadata.domain": params.domain } });
     }
     if (params.organization) {
-      must.push({ term: { "interface_metadata.org": params.organization } });
-    }
-    if (params.correlationId) {
-        must.push({ wildcard: { 
-            "correlationId": {
-                value: `*${params.correlationId}*`,
-                case_insensitive: true
-            }
-        }});
-    }
-    if (params.interfaceId) {
-        must.push({ term: { "interfaceId": params.interfaceId } });
+        must.push({ 
+            term: { 
+                "interface_metadata.org": params.organization 
+            } 
+        });
     }
 
-    const query = {
+    const searchParams = {
+        index: "logs-mulesoft-default",
         size: 0,
         track_total_hits: true,
-        query: { bool: { must } },
+        query: {
+            bool: { must }
+        },
         aggs: {
             correlations: {
                 terms: {
@@ -279,110 +301,6 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         }
     };
 
-    // Add pagination using search_after
-    const searchAfter = params.lastKey ? [params.lastKey] : undefined;
-
-    const searchParams = {
-        index: "logs-mulesoft-default",
-        size: 0,
-        track_total_hits: true,
-        query: {
-            bool: { must }
-        },
-        aggs: {
-            correlations: {
-                terms: {
-                    field: "correlationId",
-                    size: params.pageSize || 100,
-                    order: { "start_event>start_time": "desc" }
-                },
-                aggs: {
-                    applications: {
-                        terms: {
-                            field: "applicationName",
-                            size: 10
-                        }
-                    },
-                    interface_domain: {
-                        terms: {
-                            field: "interface_metadata.domain",
-                            size: 1
-                        }
-                    },
-                    interface_org: {
-                        terms: {
-                            field: "interface_metadata.org",
-                            size: 1
-                        }
-                    },
-                    interface_id: {
-                        terms: {
-                            field: "interfaceId",
-                            size: 1
-                        }
-                    },
-                    start_event: {
-                        filter: {
-                            term: { "tracePoint": "START" }
-                        },
-                        aggs: {
-                            start_time: {
-                                min: { field: "@timestamp" }
-                            }
-                        }
-                    },
-                    end_event: {
-                        filter: {
-                            term: { "tracePoint": "END" }
-                        },
-                        aggs: {
-                            end_time: {
-                                max: { field: "@timestamp" }
-                            }
-                        }
-                    },
-                    has_start: {
-                        filter: {
-                            term: { "tracePoint": "START" }
-                        }
-                    },
-                    has_end: {
-                        filter: {
-                            term: { "tracePoint": "END" }
-                        }
-                    },
-                    has_exception: {
-                        filter: {
-                            term: { "tracePoint": "EXCEPTION" }
-                        }
-                    },
-                    overall_status: {
-                        bucket_script: {
-                            buckets_path: {
-                                start: "has_start._count",
-                                end: "has_end._count",
-                                exception: "has_exception._count"
-                            },
-                            script: "if (params.exception > 0) return 0; if (params.start > 0 && params.end > 0) return 1; if (params.start > 0) return 2; return 3;"
-                        }
-                    },
-                    elapsed_time_ms: {
-                        bucket_script: {
-                            buckets_path: {
-                                start: "start_event>start_time.value",
-                                end: "end_event>end_time.value",
-                                has_start: "has_start._count",
-                                has_end: "has_end._count"
-                            },
-                            script: "if (params.has_start == 0 || params.has_end == 0 || params.start == null || params.end == null) { return 0; } return params.end - params.start;"
-                        }
-                    }
-                }
-            }
-        }
-    };
-
-    // Add status filter if specified
     if (typeof params.status === 'number') {
         searchParams.aggs.correlations.aggs.status_filter = {
             bucket_selector: {
@@ -399,6 +317,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
     return {
         data: response.aggregations?.correlations?.buckets || [],
         total: response.hits.total,
+        totalCorrelations: response.aggregations?.total_correlations?.value || 0,
         nextKey: response.aggregations?.correlations?.buckets?.length > 0 
             ? response.aggregations.correlations.buckets[response.aggregations.correlations.buckets.length - 1].key 
             : null
@@ -560,19 +479,35 @@ verifyClientConnection(elasticClient)
     });
 
 // Performance tracking
+// Update the QueryMetrics interface first
+interface QueryMetrics {
+    took: number;
+    totalShards: number;
+    successfulShards: number;
+    skippedShards: number;
+    failedShards: number;
+    timestamp: string;
+    params: QueryParams;
+    cacheHit?: boolean;
+    executionTimeMs?: number;
+    total?: number;
+}
+
+// Fix the trackQueryPerformance function
 const trackQueryPerformance = (metrics: QueryMetrics) => {
     const timeRange = metrics.params.timeRange;
     const environment = metrics.params.environment;
     
-    console.log(`Performance Report:
-        Time Range: ${timeRange}
-        Environment: ${environment}
-        Query Time: ${metrics.took}ms
-        Total Time: ${metrics.executionTimeMs}ms
-        Results: ${metrics.total}
-        Cache Hit: ${metrics.cacheHit}
-        Shards: ${metrics.successfulShards}/${metrics.totalShards}
-    `);
+    console.log(
+        `Performance Report:\n` +
+        `Time Range: ${timeRange}\n` +
+        `Environment: ${environment}\n` +
+        `Query Time: ${metrics.took}ms\n` +
+        `Total Time: ${metrics.executionTimeMs || 'N/A'}ms\n` +
+        `Results: ${metrics.total || 'N/A'}\n` +
+        `Cache Hit: ${metrics.cacheHit || false}\n` +
+        `Shards: ${metrics.successfulShards}/${metrics.totalShards}`
+    );
 };
 
 // Simple cache for counts

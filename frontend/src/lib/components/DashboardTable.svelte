@@ -19,17 +19,32 @@
     let totalUnfiltered = 0;
     let isScrolling = false;
     let container: HTMLElement;
+    let totalTraces = 0;
 
     function handleRefresh() {
         fetchData(true);
     }
+
+    // Add debounce utility
+    function debounce(fn: Function, ms = 300) {
+        let timeoutId: ReturnType<typeof setTimeout>;
+        return function (...args: any[]) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => fn.apply(this, args), ms);
+        };
+    }
+
+    // Modify the existing fetchData to use debouncing
+    const debouncedFetchData = debounce((resetPage: boolean) => {
+        fetchData(resetPage);
+    });
 
     onMount(() => {
         fetchData(true);
         
         const unsubscribe = filters.subscribe(() => {
             console.log('Filters changed:', $filters);
-            fetchData(true);
+            debouncedFetchData(true);  // Use debounced version
         });
 
         return () => {
@@ -60,23 +75,23 @@
                 queryParams.append('lastKey', lastKey);
             }
 
-            console.log('Sending filters:', Object.fromEntries(queryParams));
+            console.log('🔍 Sending request with params:', Object.fromEntries(queryParams));
             
             const response = await fetch(`http://localhost:3007/api/correlations?${queryParams}`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
             const result = await response.json();
-            console.log('Response data:', {
-                totalRecords: result.total?.value || 0,
-                currentPageSize: result.data?.length || 0,
-                hasMorePages: result.nextKey !== null,
+            console.log('📊 Response data:', {
+                correlations: result.data?.length,
+                total: result.total,
                 nextKey: result.nextKey,
-                currentCorrelationsCount: correlations.length
+                sampleData: result.data?.[0]
             });
             
             if (result.data) {
                 correlations = resetPage ? result.data : [...correlations, ...result.data];
-                totalEntries = result.total.value;
+                totalEntries = result.total?.value || 0;
+                totalTraces = result.total?.value || 0;
                 lastKey = result.nextKey;
                 hasMore = result.nextKey !== null;
             }
@@ -85,6 +100,8 @@
         } catch (err) {
             console.error('Error fetching data:', err);
             error = err instanceof Error ? err.message : 'Unknown error';
+            totalTraces = 0;
+            totalEntries = 0;
         } finally {
             loading = false;
             loadingMore = false;
@@ -133,8 +150,7 @@
             {:else if totalEntries === 0}
                 Transaction Analysis - No Results Found
             {:else}
-                <!-- Transaction Analysis - {totalEntries?.toLocaleString()} {totalEntries === 1 ? 'Entry' : 'Entries'} -->
-                Transaction Analysis - {correlations.length} {correlations.length  === 1 ? 'Entry' : 'Entries'}
+                Analysis - {correlations.length} Correlation ID's
                 {#if totalUnfiltered > totalEntries}
                     <span class="text-sm text-gray-500">
                         (filtered from {totalUnfiltered.toLocaleString()} total)
@@ -251,7 +267,7 @@
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
                 {:else}
                     <p>
-                        Showing {correlations.length} of {totalEntries} entries
+                        Showing {correlations.length} correlations with {totalTraces.toLocaleString()} traces
                         {#if correlations.length >= totalEntries}
                             (End of results)
                         {/if}
