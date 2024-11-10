@@ -168,6 +168,8 @@ const sanitizeFilterValue = (value: string): string => {
 };
 
 export const getCorrelations = async (params: QueryParams = {}) => {
+    console.log('📥 Elasticsearch Input Parameters:', params);
+    
     const must: any[] = [
         {
             range: {
@@ -179,21 +181,48 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         }
     ];
 
+    const activeFilters: Record<string, any> = {
+        timeRange: `now-${params.timeRange}`
+    };
+
+    // Environment filter
     if (params.environment) {
         must.push({ term: { "environment": params.environment } });
+        activeFilters.environment = params.environment;
     }
-    if (params.application) {
-        must.push({ term: { "applicationName": params.application } });
-    }
-    if (params.domain) {
-        must.push({ term: { "interface_metadata.domain": params.domain } });
-    }
+
+    // Organization filter
     if (params.organization) {
         must.push({ 
             term: { 
                 "interface_metadata.org": params.organization 
             } 
         });
+        activeFilters.organization = params.organization;
+    }
+
+    // Application filter
+    if (params.application) {
+        must.push({ term: { "applicationName": params.application } });
+        activeFilters.application = params.application;
+    }
+
+    // Domain filter
+    if (params.domain) {
+        must.push({ term: { "interface_metadata.domain": params.domain } });
+        activeFilters.domain = params.domain;
+    }
+
+    // Interface ID filter
+    if (params.interfaceId) {
+        must.push({ term: { "interfaceId": params.interfaceId } });
+        activeFilters.interfaceId = params.interfaceId;
+    }
+
+    // Correlation ID filter
+    if (params.correlationId) {
+        must.push({ term: { "correlationId": params.correlationId } });
+        activeFilters.correlationId = params.correlationId;
     }
 
     const searchParams = {
@@ -217,15 +246,15 @@ export const getCorrelations = async (params: QueryParams = {}) => {
                             size: 10
                         }
                     },
-                    interface_domain: {
-                        terms: {
-                            field: "interface_metadata.domain",
-                            size: 1
-                        }
-                    },
                     interface_org: {
                         terms: {
                             field: "interface_metadata.org",
+                            size: 1
+                        }
+                    },
+                    interface_domain: {
+                        terms: {
+                            field: "interface_metadata.domain",
                             size: 1
                         }
                     },
@@ -301,6 +330,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
         }
     };
 
+    // Add status filter if specified
     if (typeof params.status === 'number') {
         searchParams.aggs.correlations.aggs.status_filter = {
             bucket_selector: {

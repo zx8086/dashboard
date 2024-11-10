@@ -25,7 +25,12 @@ app.use((req, res, next) => {
 
 app.get("/api/correlations", async (req: express.Request, res: express.Response) => {
     const requestId = Math.random().toString(36).substring(7);
-    console.log(`🔄 [${requestId}] Request started`);
+    
+    // Log raw request query parameters
+    console.log(`🔍 [${requestId}] Raw Query Parameters:`, {
+        query: req.query,
+        url: req.url
+    });
 
     try {
         const params = {
@@ -40,20 +45,23 @@ app.get("/api/correlations", async (req: express.Request, res: express.Response)
             lastKey: req.query.lastKey as string
         };
         
-        console.log(`📝 [${requestId}] Parsed parameters:`, params);
+        // Log parsed parameters and their types
+        console.log(`📝 [${requestId}] Parsed Parameters:`, {
+            params,
+            types: Object.entries(params).reduce((acc, [key, value]) => ({
+                ...acc,
+                [key]: `${typeof value} => ${value}`
+            }), {})
+        });
         
         const result = await getCorrelations(params);
 
-        console.log(`✅ [${requestId}] Request completed:`, {
-            total_correlations: result.data.length,
-            total_hits: result.total,
-            filters_applied: {
-                environment: !!params.environment,
-                organization: !!params.organization,
-                domain: !!params.domain,
-                status: !!params.status,
-                application: !!params.application
-            }
+        // Log the query that was actually executed
+        console.log(`🔎 [${requestId}] Elasticsearch Query:`, {
+            filters: result.activeFilters, // We'll add this in elastic.ts
+            totalBefore: result.totalBefore, // We'll add this in elastic.ts
+            totalAfter: result.total,
+            resultCount: result.data.length
         });
 
         res.json(result);
