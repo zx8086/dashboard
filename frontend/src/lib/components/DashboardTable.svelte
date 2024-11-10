@@ -50,7 +50,6 @@
 
             const queryParams = new URLSearchParams();
             
-            // Add all filters from the store
             Object.entries($filters).forEach(([key, value]) => {
                 if (value !== null && value !== undefined && value !== '') {
                     queryParams.append(key, value.toString());
@@ -121,7 +120,6 @@
         loadingMore = true;
         await fetchData(false);
         
-        // Update hasMore based on whether we've reached total entries
         hasMore = correlations.length < totalEntries;
         loadingMore = false;
     }
@@ -135,7 +133,8 @@
             {:else if totalEntries === 0}
                 Transaction Analysis - No Results Found
             {:else}
-                Transaction Analysis - {totalEntries?.toLocaleString()} {totalEntries === 1 ? 'Entry' : 'Entries'}
+                <!-- Transaction Analysis - {totalEntries?.toLocaleString()} {totalEntries === 1 ? 'Entry' : 'Entries'} -->
+                Transaction Analysis - {correlations.length} {correlations.length  === 1 ? 'Entry' : 'Entries'}
                 {#if totalUnfiltered > totalEntries}
                     <span class="text-sm text-gray-500">
                         (filtered from {totalUnfiltered.toLocaleString()} total)

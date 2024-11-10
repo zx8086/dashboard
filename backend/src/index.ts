@@ -2,7 +2,7 @@
 
 import express from "express";
 import cors from "cors";
-import { elasticClient, getCorrelations, getPerformanceMetrics } from "./elastic.js";
+import { getClusterHealth, elasticClient, getCorrelations, getPerformanceMetrics } from "./elastic.js";
 
 const app = express();
 const port = 3007;

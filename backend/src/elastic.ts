@@ -1,8 +1,10 @@
 // backend/src/elastic.ts
 
+import dotenv from 'dotenv';
 import { Client } from "@elastic/elasticsearch";
 import type { validateQueryParams, QueryParams } from "./types.ts";
-// import { validateQueryParams } from './types';
+
+dotenv.config();
 
 type SearchResponse<T, A> = {
     took?: number;
@@ -61,11 +63,21 @@ class ElasticsearchError extends Error {
 }
 
 const createElasticClient = () => {
+  const apiKey = process.env.ELASTIC_CLOUD_API_KEY;
+  const cloudId = process.env.ELASTIC_CLOUD_ID;
+
+  if (!apiKey || !cloudId) {
+    console.error('Available env vars:', Object.keys(process.env));
+    throw new ElasticsearchError(
+      "ELASTIC_CLOUD_API_KEY environment variable is not set"
+    );
+  }
+
   try {
     return new Client({
-      node: "https://us-cld.es.us-east-1.aws.found.io",
+      node: cloudId,
       auth: {
-        apiKey: "cEFyZUI1TUI1cVVLcVplR05nOTU6b25FYXVnWWVTRjZRMnlXSnZWc2JyQQ==",
+        apiKey: process.env.ELASTIC_CLOUD_API_KEY
       },
       maxRetries: 5,
       requestTimeout: 60000,
@@ -118,8 +130,8 @@ interface QueryMetrics {
 const getTimeRangeSettings = (timeRange: string) => {
     if (timeRange === '24h') {
         return {
-            batched_reduce_size: 1024, // Increase for larger time ranges
-            max_concurrent_shard_requests: 3 // Reduce concurrent requests
+            batched_reduce_size: 1024,
+            max_concurrent_shard_requests: 3
         };
     }
     return {
@@ -156,7 +168,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             });
         }
 
-        // Add search filters
+        // Search filters
         if (params.application) {
             must.push({ term: { "applicationName": params.application } });
         }
@@ -293,7 +305,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
     }
 };
 
-// Function to store metrics (implement based on your needs)
+// Function to store metrics 
 async function storeQueryMetrics(metrics: QueryMetrics) {
     try {
         // Option 1: Store in Elasticsearch
@@ -336,7 +348,7 @@ export const getQueryMetrics = (timeRange: string = '1h') => {
     };
 };
 
-// Helper function to parse time ranges
+// Function to parse time ranges
 function parseTimeRange(timeRange: string): number {
     const unit = timeRange.slice(-1);
     const value = parseInt(timeRange.slice(0, -1));
@@ -370,7 +382,6 @@ export const getPerformanceMetrics = async (timeRange: string = '1h') => {
                 requestCacheEnabled: true,
                 batchedReduceSize: 512,
                 maxConcurrentShardRequests: 5,
-                // ... other optimization settings
             }
         };
     } catch (error) {
@@ -379,7 +390,7 @@ export const getPerformanceMetrics = async (timeRange: string = '1h') => {
     }
 };
 
-// Helper functions to manage pagination state
+// Functions to manage pagination state
 const correlationIdCache = new Map<number, string>();
 
 function storeLastCorrelationId(page: number, correlationId: string) {
@@ -448,7 +459,7 @@ verifyClientConnection(elasticClient)
         process.exit(1);
     });
 
-// Add performance tracking
+// Performance tracking
 const trackQueryPerformance = (metrics: QueryMetrics) => {
     const timeRange = metrics.params.timeRange;
     const environment = metrics.params.environment;
@@ -464,7 +475,7 @@ const trackQueryPerformance = (metrics: QueryMetrics) => {
     `);
 };
 
-// Add a simple cache for counts
+// Simple cache for counts
 const countCache = new Map<string, { count: number; timestamp: number }>();
 const CACHE_TTL = 5000; // 5 seconds
 
