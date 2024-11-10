@@ -2,7 +2,7 @@
 
 import { writable, derived } from 'svelte/store';
 
-export interface FilterState {
+export interface Filters {
     timeRange: string;
     status: number | null;
     application: string;
@@ -25,12 +25,12 @@ export interface RefreshState {
 }
 
 // Initialize with default values
-export const filters = writable<FilterState>({
+export const filters = writable<Filters>({
     timeRange: '15m',
     status: null,
     application: '',
     correlationId: '',
-    environment: 'preprod',
+    environment: '',
     organization: '',
     domain: '',
     interfaceId: ''

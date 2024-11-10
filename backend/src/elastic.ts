@@ -141,168 +141,256 @@ const getTimeRangeSettings = (timeRange: string) => {
 };
 
 export const getCorrelations = async (params: QueryParams = {}) => {
-    try {
-        const must: any[] = [
-            {
-                range: {
-                    "@timestamp": {
-                        gte: `now-${params.timeRange}`,
-                        lte: 'now'
-                    }
+    const must: any[] = [
+        {
+            range: {
+                "@timestamp": {
+                    gte: `now-${params.timeRange}`,
+                    lte: 'now'
                 }
             }
-        ];
-
-        if (params.environment) {
-            must.push({ term: { "environment": params.environment } });
         }
+    ];
 
-        if (params.correlationId) {
-            must.push({
-                wildcard: {
-                    "correlationId": {
-                        value: `*${params.correlationId}*`,
-                        case_insensitive: true
+    // Add all filters if they exist
+    if (params.environment) {
+        must.push({ term: { "environment": params.environment } });
+    }
+    if (params.application) {
+        must.push({ term: { "applicationName": params.application } });
+    }
+    if (params.domain) {
+        must.push({ term: { "interface_metadata.domain": params.domain } });
+    }
+    if (params.organization) {
+        must.push({ term: { "organization": params.organization } });
+    }
+    if (params.correlationId) {
+        must.push({ wildcard: { 
+            "correlationId": {
+                value: `*${params.correlationId}*`,
+                case_insensitive: true
+            }
+        }});
+    }
+    if (params.interfaceId) {
+        must.push({ term: { "interfaceId": params.interfaceId } });
+    }
+
+    const query = {
+        size: 0,
+        track_total_hits: true,
+        query: { bool: { must } },
+        aggs: {
+            correlations: {
+                terms: {
+                    field: "correlationId",
+                    size: params.pageSize || 100,
+                    order: { "start_event>start_time": "desc" }
+                },
+                aggs: {
+                    applications: {
+                        terms: {
+                            field: "applicationName",
+                            size: 10
+                        }
+                    },
+                    interface_domain: {
+                        terms: {
+                            field: "interface_metadata.domain",
+                            size: 1
+                        }
+                    },
+                    interface_id: {
+                        terms: {
+                            field: "interfaceId",
+                            size: 1
+                        }
+                    },
+                    start_event: {
+                        filter: {
+                            term: { "tracePoint": "START" }
+                        },
+                        aggs: {
+                            start_time: {
+                                min: { field: "@timestamp" }
+                            }
+                        }
+                    },
+                    end_event: {
+                        filter: {
+                            term: { "tracePoint": "END" }
+                        },
+                        aggs: {
+                            end_time: {
+                                max: { field: "@timestamp" }
+                            }
+                        }
+                    },
+                    has_start: {
+                        filter: {
+                            term: { "tracePoint": "START" }
+                        }
+                    },
+                    has_end: {
+                        filter: {
+                            term: { "tracePoint": "END" }
+                        }
+                    },
+                    has_exception: {
+                        filter: {
+                            term: { "tracePoint": "EXCEPTION" }
+                        }
+                    },
+                    overall_status: {
+                        bucket_script: {
+                            buckets_path: {
+                                start: "has_start._count",
+                                end: "has_end._count",
+                                exception: "has_exception._count"
+                            },
+                            script: "if (params.exception > 0) return 0; if (params.start > 0 && params.end > 0) return 1; if (params.start > 0) return 2; return 3;"
+                        }
+                    },
+                    elapsed_time_ms: {
+                        bucket_script: {
+                            buckets_path: {
+                                start: "start_event>start_time.value",
+                                end: "end_event>end_time.value",
+                                has_start: "has_start._count",
+                                has_end: "has_end._count"
+                            },
+                            script: "if (params.has_start == 0 || params.has_end == 0 || params.start == null || params.end == null) { return 0; } return params.end - params.start;"
+                        }
                     }
                 }
-            });
-        }
-
-        // Search filters
-        if (params.application) {
-            must.push({ term: { "applicationName": params.application } });
-        }
-
-        if (params.domain) {
-            must.push({ term: { "interface_metadata.domain": params.domain } });
-        }
-
-        if (params.interfaceId) {
-            must.push({ term: { "interfaceId": params.interfaceId } });
-        }
-
-        // Add pagination using search_after
-        const searchAfter = params.lastKey ? [params.lastKey] : undefined;
-
-        const searchParams = {
-            index: "logs-mulesoft-default",
-            size: 0,
-            track_total_hits: true,
-            query: {
-                bool: { must }
             },
-            aggs: {
-                correlations: {
-                    terms: {
-                        field: "correlationId",
-                        size: params.pageSize || 100,
-                        order: { "start_time": "desc" }
+            total_correlations: {
+                cardinality: {
+                    field: "correlationId"
+                }
+            }
+        }
+    };
+
+    // Add pagination using search_after
+    const searchAfter = params.lastKey ? [params.lastKey] : undefined;
+
+    const searchParams = {
+        index: "logs-mulesoft-default",
+        size: 0,
+        track_total_hits: true,
+        query: {
+            bool: { must }
+        },
+        aggs: {
+            correlations: {
+                terms: {
+                    field: "correlationId",
+                    size: params.pageSize || 100,
+                    order: { "start_event>start_time": "desc" }
+                },
+                aggs: {
+                    applications: {
+                        terms: {
+                            field: "applicationName",
+                            size: 10
+                        }
                     },
-                    aggs: {
-                        applications: {
-                            terms: {
-                                field: "applicationName",
-                                size: 10
-                            }
+                    interface_domain: {
+                        terms: {
+                            field: "interface_metadata.domain",
+                            size: 1
+                        }
+                    },
+                    interface_id: {
+                        terms: {
+                            field: "interfaceId",
+                            size: 1
+                        }
+                    },
+                    start_event: {
+                        filter: {
+                            term: { "tracePoint": "START" }
                         },
-                        interface_id: {
-                            terms: {
-                                field: "interfaceId",
-                                size: 1
+                        aggs: {
+                            start_time: {
+                                min: { field: "@timestamp" }
                             }
+                        }
+                    },
+                    end_event: {
+                        filter: {
+                            term: { "tracePoint": "END" }
                         },
-                        interface_domain: {
-                            terms: {
-                                field: "interfaceDomain",
-                                size: 1
+                        aggs: {
+                            end_time: {
+                                max: { field: "@timestamp" }
                             }
-                        },
-                        interface_org: {
-                            terms: {
-                                field: "interfaceOrg",
-                                size: 1
-                            }
-                        },
-                        start_time: {
-                            min: {
-                                field: "@timestamp"
-                            }
-                        },
-                        end_time: {
-                            max: {
-                                field: "@timestamp"
-                            }
-                        },
-                        has_start: {
-                            filter: {
-                                term: {
-                                    "tracePoint": "START"
-                                }
-                            }
-                        },
-                        has_end: {
-                            filter: {
-                                term: {
-                                    "tracePoint": "END"
-                                }
-                            }
-                        },
-                        has_exception: {
-                            filter: {
-                                term: {
-                                    "tracePoint": "EXCEPTION"
-                                }
-                            }
-                        },
-                        overall_status: {
-                            bucket_script: {
-                                buckets_path: {
-                                    start: "has_start._count",
-                                    end: "has_end._count",
-                                    exception: "has_exception._count"
-                                },
-                                script: "if (params.exception > 0) return 0; if (params.start > 0 && params.end > 0) return 1; if (params.start > 0) return 2; return 3;"
-                            }
-                        },
-                        elapsed_time_ms: {
-                            bucket_script: {
-                                buckets_path: {
-                                    start: "start_time.value",
-                                    end: "end_time.value"
-                                },
-                                script: "if (params.start == null || params.end == null) { return null } return params.end - params.start"
-                            }
+                        }
+                    },
+                    has_start: {
+                        filter: {
+                            term: { "tracePoint": "START" }
+                        }
+                    },
+                    has_end: {
+                        filter: {
+                            term: { "tracePoint": "END" }
+                        }
+                    },
+                    has_exception: {
+                        filter: {
+                            term: { "tracePoint": "EXCEPTION" }
+                        }
+                    },
+                    overall_status: {
+                        bucket_script: {
+                            buckets_path: {
+                                start: "has_start._count",
+                                end: "has_end._count",
+                                exception: "has_exception._count"
+                            },
+                            script: "if (params.exception > 0) return 0; if (params.start > 0 && params.end > 0) return 1; if (params.start > 0) return 2; return 3;"
+                        }
+                    },
+                    elapsed_time_ms: {
+                        bucket_script: {
+                            buckets_path: {
+                                start: "start_event>start_time.value",
+                                end: "end_event>end_time.value",
+                                has_start: "has_start._count",
+                                has_end: "has_end._count"
+                            },
+                            script: "if (params.has_start == 0 || params.has_end == 0 || params.start == null || params.end == null) { return 0; } return params.end - params.start;"
                         }
                     }
                 }
             }
-        };
-
-        // Add status filter if specified
-        if (typeof params.status === 'number') {
-            searchParams.aggs.correlations.aggs.status_filter = {
-                bucket_selector: {
-                    buckets_path: {
-                        status: "overall_status"
-                    },
-                    script: `params.status == ${params.status}`
-                }
-            };
         }
+    };
 
-        const response = await elasticClient.search(searchParams);
-        
-        return {
-            data: response.aggregations?.correlations?.buckets || [],
-            total: response.hits.total,
-            nextKey: response.aggregations?.correlations?.buckets?.length > 0 
-                ? response.aggregations.correlations.buckets[response.aggregations.correlations.buckets.length - 1].key 
-                : null
+    // Add status filter if specified
+    if (typeof params.status === 'number') {
+        searchParams.aggs.correlations.aggs.status_filter = {
+            bucket_selector: {
+                buckets_path: {
+                    status: "overall_status"
+                },
+                script: `params.status == ${params.status}`
+            }
         };
-    } catch (error) {
-        console.error('Elasticsearch error:', error);
-        throw error;
     }
+
+    const response = await elasticClient.search(searchParams);
+    
+    return {
+        data: response.aggregations?.correlations?.buckets || [],
+        total: response.hits.total,
+        nextKey: response.aggregations?.correlations?.buckets?.length > 0 
+            ? response.aggregations.correlations.buckets[response.aggregations.correlations.buckets.length - 1].key 
+            : null
+    };
 };
 
 // Function to store metrics 

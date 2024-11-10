@@ -211,15 +211,15 @@
                                 {row.interface_org?.buckets[0]?.key || 'No Organization'}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                {#if row.start_time?.value}
-                                    {new Date(row.start_time.value).toLocaleString()}
+                                {#if row.start_event?.start_time?.value}
+                                    {new Date(row.start_event.start_time.value).toLocaleString()}
                                 {:else}
                                     N/A
                                 {/if}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                {#if row.end_time?.value}
-                                    {new Date(row.end_time.value).toLocaleString()}
+                                {#if row.end_event?.end_time?.value}
+                                    {new Date(row.end_event.end_time.value).toLocaleString()}
                                 {:else}
                                     N/A
                                 {/if}
@@ -232,11 +232,7 @@
                                 {/if}
                             </td>
                             <td class="px-6 py-4">
-                                {#if row.overall_status}
-                                    <StatusBadge status={row.overall_status.value} />
-                                {:else}
-                                    <pre>{JSON.stringify(row, null, 2)}</pre>
-                                {/if}
+                                <StatusBadge status={row.overall_status?.value ?? 3} />
                             </td>
                         </tr>
                     {/each}
