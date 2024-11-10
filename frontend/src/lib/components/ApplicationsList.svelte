@@ -11,7 +11,7 @@
                 {app.key}
             </span>
             <span class="text-xs text-gray-500">
-                ({app.doc_count} events)
+                ({app.doc_count} {app.doc_count === 1 ? 'trace' : 'traces'})
             </span>
         </div>
     {/each}
