@@ -77,18 +77,6 @@
             </select>
         </div>
 
-        <!-- Application -->
-        <div>
-            <label for="application" class="block text-sm font-medium text-gray-700">Application</label>
-            <input 
-                id="application"
-                type="text" 
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Search applications..."
-                bind:value={$filters.application}
-            />
-        </div>
-
         <!-- Correlation ID -->
         <div>
             <label for="correlationId" class="block text-sm font-medium text-gray-700">Correlation ID</label>
@@ -98,6 +86,18 @@
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 placeholder="Search by correlation ID..."
                 bind:value={$filters.correlationId}
+            />
+        </div>
+
+        <!-- Application -->
+        <div>
+            <label for="application" class="block text-sm font-medium text-gray-700">Application</label>
+            <input 
+                id="application"
+                type="text" 
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                placeholder="Search applications..."
+                bind:value={$filters.application}
             />
         </div>
 
@@ -115,15 +115,16 @@
             </select>
         </div>
 
-        <!-- Organization -->
+
+        <!-- Interface ID -->
         <div>
-            <label for="organization" class="block text-sm font-medium text-gray-700">Organization</label>
+            <label for="interfaceId" class="block text-sm font-medium text-gray-700">Interface ID</label>
             <input 
-                id="organization"
+                id="interfaceId"
                 type="text" 
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Search organization..."
-                bind:value={$filters.organization}
+                placeholder="Search interface ID..."
+                bind:value={$filters.interfaceId}
             />
         </div>
 
@@ -139,16 +140,17 @@
             />
         </div>
 
-        <!-- Interface ID -->
+        <!-- Organization -->
         <div>
-            <label for="interfaceId" class="block text-sm font-medium text-gray-700">Interface ID</label>
+            <label for="organization" class="block text-sm font-medium text-gray-700">Organization</label>
             <input 
-                id="interfaceId"
+                id="organization"
                 type="text" 
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Search interface ID..."
-                bind:value={$filters.interfaceId}
+                placeholder="Search organization..."
+                bind:value={$filters.organization}
             />
         </div>
+
     </div>
 </div>
