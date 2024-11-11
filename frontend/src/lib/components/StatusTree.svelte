@@ -222,7 +222,7 @@
                                 <h3 class="font-semibold">{org}</h3>
                             </div>
                             <span class="text-sm text-gray-500">
-                                {orgData.count} correlations
+                                {orgData.count} correlation{orgData.count !== 1 ? 's' : ''}
                             </span>
                         </div>
                     </div>
@@ -245,7 +245,7 @@
                                     />
                                     <span>{domain}</span>
                                     <span class="text-sm text-gray-500 ml-auto">
-                                        {domainData.count}
+                                        {domainData.count} correlation{domainData.count !== 1 ? 's' : ''}
                                     </span>
                                 </button>
 
@@ -267,7 +267,7 @@
                                                     />
                                                     <span class="text-sm">{interfaceId}</span>
                                                     <span class="text-xs text-gray-500 ml-auto">
-                                                        {interfaceData.count} correlations
+                                                        {interfaceData.count} correlation{interfaceData.count !== 1 ? 's' : ''}
                                                     </span>
                                                 </button>
 
@@ -289,7 +289,7 @@
                                                                     />
                                                                     <span class="text-sm truncate">{correlationId}</span>
                                                                     <span class="text-xs text-gray-500 ml-auto">
-                                                                        {correlationData.count} apps
+                                                                        {correlationData.count} app{correlationData.count !== 1 ? 's' : ''}
                                                                     </span>
                                                                 </button>
 
@@ -297,10 +297,6 @@
                                                                     <div class="ml-6 py-1">
                                                                         {#each correlationData.applications as app}
                                                                             <div class="flex items-center p-2 text-sm">
-                                                                                <svelte:component 
-                                                                                    this={getStatusIcon(app.status)} 
-                                                                                    class={`w-4 h-4 ${getStatusColor(app.status)} mr-2`}
-                                                                                />
                                                                                 <span>{app.key}</span>
                                                                                 <span class="text-xs text-gray-500 ml-2">
                                                                                     ({app.doc_count} {app.doc_count === 1 ? 'trace' : 'traces'})
