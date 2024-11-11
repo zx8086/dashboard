@@ -140,23 +140,20 @@
         try {
             loading = true;
             error = null;
-            console.log('Fetching data with filters:', $filters);
-
+            
             const queryParams = new URLSearchParams();
             Object.entries($filters).forEach(([key, value]) => {
                 if (value !== null && value !== undefined && value !== '') {
                     queryParams.append(key, value.toString());
                 }
             });
+            queryParams.append('view', 'tree');
 
             const url = `http://localhost:3007/api/correlations?${queryParams}`;
-            console.log('Fetching from URL:', url);
-            
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
             const result = await response.json();
-            console.log('Received data:', result);
             correlations = result.data || [];
             
         } catch (err) {

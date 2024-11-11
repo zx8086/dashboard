@@ -42,7 +42,8 @@ app.get("/api/correlations", async (req: express.Request, res: express.Response)
             organization: req.query.organization as string,
             domain: req.query.domain as string,
             interfaceId: req.query.interfaceId as string,
-            lastKey: req.query.lastKey as string
+            lastKey: req.query.lastKey as string,
+            view: req.query.view as 'table' | 'tree'
         };
         
         // Log parsed parameters and their types

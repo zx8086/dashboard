@@ -236,7 +236,7 @@ export const getCorrelations = async (params: QueryParams = {}) => {
             correlations: {
                 terms: {
                     field: "correlationId",
-                    size: params.pageSize || 100,
+                    size: params.view === 'tree' ? 10000 : (params.pageSize || 100),
                     order: { "start_event>start_time": "desc" }
                 },
                 aggs: {
