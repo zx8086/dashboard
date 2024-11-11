@@ -3,39 +3,67 @@
     import { ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, HelpCircle } from 'lucide-svelte';
     import { filters } from '../stores/dashboard';
 
-    function getWorstStatus(statuses) {
-        if (statuses.includes('failed')) return 'failed';
-        if (statuses.includes('in_progress')) return 'in_progress';
-        if (statuses.includes('success')) return 'success';
-        return 'unknown';
+    let correlations = [];
+    let loading = true;
+    let error: string | null = null;
+    let expandedState: Record<string, boolean> = {};
+
+    function getStatusIcon(status: number) {
+        switch (status) {
+            case 1: return CheckCircle;  // Success
+            case 0: return XCircle;      // Failed
+            case 2: return Clock;        // In Progress
+            default: return HelpCircle;  // Unknown
+        }
+    }
+
+    function getStatusColor(status: number) {
+        switch (status) {
+            case 1: return 'text-green-500';  // Success
+            case 0: return 'text-red-500';    // Failed
+            case 2: return 'text-yellow-500'; // In Progress
+            default: return 'text-gray-500';  // Unknown
+        }
+    }
+
+    function getStatusBarColor(status: number) {
+        switch (status) {
+            case 1: return 'border-l-4 border-green-500';  // Success
+            case 0: return 'border-l-4 border-red-500';    // Failed
+            case 2: return 'border-l-4 border-yellow-500'; // In Progress
+            default: return 'border-l-4 border-gray-300';  // Unknown
+        }
+    }
+
+    function toggleNode(path: string) {
+        expandedState[path] = !expandedState[path];
+        expandedState = expandedState;
     }
 
     function processData(data) {
+        console.log('Processing data:', data);
         const tree = {};
         
-        // First pass: Build the tree structure
         data.forEach(item => {
             const org = item.interface_org?.buckets[0]?.key || 'No Organisation';
             const domain = item.interface_domain?.buckets[0]?.key || 'No Domain';
             const interfaceId = item.interface_id?.buckets[0]?.key || 'Unknown';
             const correlationId = item.key;
-            
-            // Get the correlation status
-            const correlationStatus = item.status?.toLowerCase() || 'unknown';
+            const status = item.overall_status?.value ?? 3;
             const applications = item.applications?.buckets || [];
             
             if (!tree[org]) {
-                tree[org] = { domains: {}, status: 'unknown', count: 0 };
+                tree[org] = { domains: {}, status, count: 0 };
             }
             
             if (!tree[org].domains[domain]) {
-                tree[org].domains[domain] = { interfaces: {}, status: 'unknown', count: 0 };
+                tree[org].domains[domain] = { interfaces: {}, status, count: 0 };
             }
-
+            
             if (!tree[org].domains[domain].interfaces[interfaceId]) {
                 tree[org].domains[domain].interfaces[interfaceId] = {
                     correlations: {},
-                    status: 'unknown',
+                    status,
                     count: 0
                 };
             }
@@ -43,178 +71,220 @@
             if (!tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId]) {
                 tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId] = {
                     applications: [],
-                    status: correlationStatus,
+                    status,
                     count: 0
                 };
             }
             
-            // Add applications
             applications.forEach(app => {
                 if (!tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId].applications.find(a => a.key === app.key)) {
                     tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId].applications.push({
                         key: app.key,
                         doc_count: app.doc_count,
-                        status: correlationStatus // Applications inherit correlation status
+                        status
                     });
                 }
             });
             
-            // Update counts
             tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId].count = applications.length;
             tree[org].domains[domain].interfaces[interfaceId].count++;
             tree[org].domains[domain].count++;
             tree[org].count++;
         });
         
-        // Second pass: Propagate status up the tree
-        Object.entries(tree).forEach(([org, orgData]) => {
-            Object.entries(orgData.domains).forEach(([domain, domainData]) => {
-                Object.entries(domainData.interfaces).forEach(([interfaceId, interfaceData]) => {
-                    // Get worst status from correlations
-                    const correlationStatuses = Object.values(interfaceData.correlations).map(c => c.status);
-                    interfaceData.status = getWorstStatus(correlationStatuses);
-                });
-                
-                // Get worst status from interfaces
-                const interfaceStatuses = Object.values(domainData.interfaces).map(i => i.status);
-                domainData.status = getWorstStatus(interfaceStatuses);
-            });
-            
-            // Get worst status from domains
-            const domainStatuses = Object.values(orgData.domains).map(d => d.status);
-            orgData.status = getWorstStatus(domainStatuses);
-        });
-        
+        console.log('Processed tree:', tree);
         return tree;
     }
 
-    // Add your status color functions
-    function getStatusColor(status: string) {
-        switch (status?.toLowerCase()) {
-            case 'success': return 'text-green-500';
-            case 'failed': return 'text-red-500';
-            case 'in_progress': return 'text-yellow-500';
-            case 'unknown':
-            default: return 'text-gray-400';
+    async function fetchData() {
+        try {
+            loading = true;
+            error = null;
+            console.log('Fetching data with filters:', $filters);
+
+            const queryParams = new URLSearchParams();
+            Object.entries($filters).forEach(([key, value]) => {
+                if (value !== null && value !== undefined && value !== '') {
+                    queryParams.append(key, value.toString());
+                }
+            });
+
+            const url = `http://localhost:3007/api/correlations?${queryParams}`;
+            console.log('Fetching from URL:', url);
+            
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const result = await response.json();
+            console.log('Received data:', result);
+            correlations = result.data || [];
+            
+        } catch (err) {
+            console.error('Error fetching data:', err);
+            error = err instanceof Error ? err.message : 'Unknown error';
+        } finally {
+            loading = false;
         }
     }
 
-    function getBackgroundColor(status: string) {
-        switch (status?.toLowerCase()) {
-            case 'success': return 'bg-green-50';
-            case 'failed': return 'bg-red-50';
-            case 'in_progress': return 'bg-yellow-50';
-            case 'unknown':
-            default: return 'bg-white';
-        }
-    }
+    onMount(() => {
+        fetchData();
+        return filters.subscribe(() => fetchData());
+    });
 
-    function getStatusBarColor(status: string) {
-        switch (status?.toLowerCase()) {
-            case 'success': return 'border-l-[3px] border-green-500';
-            case 'failed': return 'border-l-[3px] border-red-500';
-            case 'in_progress': return 'border-l-[3px] border-yellow-500';
-            case 'unknown':
-            default: return 'border-l-[3px] border-gray-300';
-        }
-    }
-
-    export let data: any;
-    let processedData = processData(data);
+    $: processedData = processData(correlations);
 </script>
 
-<div class="flex flex-col gap-2">
+<!-- Rest of your template code remains the same -->
+<div class="p-4">
+    <h2 class="text-xl font-semibold mb-4">Interface Status by Organization and Domain</h2>
+    
     <!-- Status Legend -->
-    <div class="flex gap-4 items-center mb-4">
+    <div class="flex gap-4 mb-6">
         <div class="flex items-center gap-2">
-            <CheckCircle class="text-green-500" size={20} />
+            <CheckCircle class="w-5 h-5 text-green-500" />
             <span>Success</span>
         </div>
         <div class="flex items-center gap-2">
-            <XCircle class="text-red-500" size={20} />
+            <XCircle class="w-5 h-5 text-red-500" />
             <span>Failed</span>
         </div>
         <div class="flex items-center gap-2">
-            <Clock class="text-yellow-500" size={20} />
+            <Clock class="w-5 h-5 text-yellow-500" />
             <span>In Progress</span>
         </div>
         <div class="flex items-center gap-2">
-            <HelpCircle class="text-gray-400" size={20} />
+            <HelpCircle class="w-5 h-5 text-gray-500" />
             <span>Unknown</span>
         </div>
     </div>
 
-    <!-- Tree Structure -->
-    <div class="flex flex-col gap-2">
-        {#each Object.entries(processedData) as [org, orgData]}
-            <div class="rounded-lg shadow-sm">
-                <button class="w-full flex items-center p-2 hover:bg-gray-50 text-left {getBackgroundColor(orgData.status)} {getStatusBarColor(orgData.status)}">
-                    <svelte:component this={ChevronRight} class="mr-2" size={16} />
-                    <svelte:component 
-                        this={orgData.status === 'success' ? CheckCircle :
-                             orgData.status === 'failed' ? XCircle :
-                             orgData.status === 'in_progress' ? Clock : HelpCircle}
-                        class={getStatusColor(orgData.status)}
-                        size={16}
-                    />
-                    <span class="ml-2">{org}</span>
-                    <span class="ml-auto text-sm text-gray-500">{orgData.count} correlations</span>
-                </button>
-
-                <div class="ml-6">
-                    {#each Object.entries(orgData.domains) as [domain, domainData]}
-                        <div>
-                            <button class="w-full flex items-center p-2 hover:bg-gray-50 text-left {getBackgroundColor(domainData.status)} {getStatusBarColor(domainData.status)}">
-                                <svelte:component this={ChevronRight} class="mr-2" size={16} />
+    {#if loading}
+        <div class="flex justify-center items-center h-64">
+            <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+        </div>
+    {:else if error}
+        <div class="text-red-500 p-4 bg-red-50 rounded">
+            <p class="font-bold">Error: {error}</p>
+        </div>
+    {:else if Object.keys(processedData).length === 0}
+        <div class="text-gray-500 p-4 bg-gray-50 rounded text-center">
+            <p>No data available. Please adjust your filters and try again.</p>
+        </div>
+    {:else}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {#each Object.entries(processedData) as [org, orgData]}
+                <div class="border rounded-lg shadow-sm bg-white overflow-hidden">
+                    <div class={`p-4 border-b ${getStatusBarColor(orgData.status)}`}>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
                                 <svelte:component 
-                                    this={domainData.status === 'success' ? CheckCircle :
-                                         domainData.status === 'failed' ? XCircle :
-                                         domainData.status === 'in_progress' ? Clock : HelpCircle}
-                                    class={getStatusColor(domainData.status)}
-                                    size={16}
+                                    this={getStatusIcon(orgData.status)} 
+                                    class={`w-5 h-5 ${getStatusColor(orgData.status)}`}
                                 />
-                                <span class="ml-2">{domain}</span>
-                                <span class="ml-auto text-sm text-gray-500">{domainData.count}</span>
-                            </button>
-
-                            <div class="ml-6">
-                                {#each Object.entries(domainData.interfaces) as [interfaceId, interfaceData]}
-                                    <div>
-                                        <button class="w-full flex items-center p-2 hover:bg-gray-50 text-left {getBackgroundColor(interfaceData.status)} {getStatusBarColor(interfaceData.status)}">
-                                            <svelte:component this={ChevronRight} class="mr-2" size={16} />
-                                            <svelte:component 
-                                                this={interfaceData.status === 'success' ? CheckCircle :
-                                                     interfaceData.status === 'failed' ? XCircle :
-                                                     interfaceData.status === 'in_progress' ? Clock : HelpCircle}
-                                                class={getStatusColor(interfaceData.status)}
-                                                size={16}
-                                            />
-                                            <span class="ml-2">{interfaceId}</span>
-                                            <span class="ml-auto text-sm text-gray-500">{interfaceData.count} correlations</span>
-                                        </button>
-
-                                        <div class="ml-6">
-                                            {#each Object.entries(interfaceData.correlations) as [correlationId, correlationData]}
-                                                <div class="w-full flex items-center p-2 {getBackgroundColor(correlationData.status)} {getStatusBarColor(correlationData.status)}">
-                                                    <svelte:component 
-                                                        this={correlationData.status === 'success' ? CheckCircle :
-                                                             correlationData.status === 'failed' ? XCircle :
-                                                             correlationData.status === 'in_progress' ? Clock : HelpCircle}
-                                                        class={getStatusColor(correlationData.status)}
-                                                        size={16}
-                                                    />
-                                                    <span class="ml-2">{correlationId}</span>
-                                                    <span class="ml-auto text-sm text-gray-500">{correlationData.count} apps</span>
-                                                </div>
-                                            {/each}
-                                        </div>
-                                    </div>
-                                {/each}
+                                <h3 class="font-semibold">{org}</h3>
                             </div>
+                            <span class="text-sm text-gray-500">
+                                {orgData.count} correlations
+                            </span>
                         </div>
-                    {/each}
+                    </div>
+
+                    <!-- Domains List -->
+                    <div class="p-2">
+                        {#each Object.entries(orgData.domains) as [domain, domainData]}
+                            <div class="border-b last:border-b-0">
+                                <button 
+                                    class="w-full flex items-center p-2 hover:bg-gray-50 text-left"
+                                    on:click={() => toggleNode(`${org}.${domain}`)}
+                                >
+                                    <svelte:component
+                                        this={expandedState[`${org}.${domain}`] ? ChevronDown : ChevronRight}
+                                        class="w-4 h-4 text-gray-400 mr-1"
+                                    />
+                                    <svelte:component 
+                                        this={getStatusIcon(domainData.status)} 
+                                        class={`w-4 h-4 ${getStatusColor(domainData.status)} mr-2`}
+                                    />
+                                    <span>{domain}</span>
+                                    <span class="text-sm text-gray-500 ml-auto">
+                                        {domainData.count}
+                                    </span>
+                                </button>
+
+                                {#if expandedState[`${org}.${domain}`]}
+                                    <div class="ml-6">
+                                        {#each Object.entries(domainData.interfaces) as [interfaceId, interfaceData]}
+                                            <div class="border-t">
+                                                <button 
+                                                    class="w-full flex items-center p-2 hover:bg-gray-50 text-left"
+                                                    on:click={() => toggleNode(`${org}.${domain}.${interfaceId}`)}
+                                                >
+                                                    <svelte:component
+                                                        this={expandedState[`${org}.${domain}.${interfaceId}`] ? ChevronDown : ChevronRight}
+                                                        class="w-4 h-4 text-gray-400 mr-1"
+                                                    />
+                                                    <svelte:component 
+                                                        this={getStatusIcon(interfaceData.status)} 
+                                                        class={`w-4 h-4 ${getStatusColor(interfaceData.status)} mr-2`}
+                                                    />
+                                                    <span class="text-sm">{interfaceId}</span>
+                                                    <span class="text-xs text-gray-500 ml-auto">
+                                                        {interfaceData.count} correlations
+                                                    </span>
+                                                </button>
+
+                                                {#if expandedState[`${org}.${domain}.${interfaceId}`]}
+                                                    <div class="ml-6">
+                                                        {#each Object.entries(interfaceData.correlations) as [correlationId, correlationData]}
+                                                            <div class="border-t">
+                                                                <button 
+                                                                    class="w-full flex items-center p-2 hover:bg-gray-50 text-left"
+                                                                    on:click={() => toggleNode(`${org}.${domain}.${interfaceId}.${correlationId}`)}
+                                                                >
+                                                                    <svelte:component
+                                                                        this={expandedState[`${org}.${domain}.${interfaceId}.${correlationId}`] ? ChevronDown : ChevronRight}
+                                                                        class="w-4 h-4 text-gray-400 mr-1"
+                                                                    />
+                                                                    <svelte:component 
+                                                                        this={getStatusIcon(correlationData.status)} 
+                                                                        class={`w-4 h-4 ${getStatusColor(correlationData.status)} mr-2`}
+                                                                    />
+                                                                    <span class="text-sm truncate">{correlationId}</span>
+                                                                    <span class="text-xs text-gray-500 ml-auto">
+                                                                        {correlationData.count} apps
+                                                                    </span>
+                                                                </button>
+
+                                                                {#if expandedState[`${org}.${domain}.${interfaceId}.${correlationId}`]}
+                                                                    <div class="ml-6 py-1">
+                                                                        {#each correlationData.applications as app}
+                                                                            <div class="flex items-center p-2 text-sm">
+                                                                                <svelte:component 
+                                                                                    this={getStatusIcon(app.status)} 
+                                                                                    class={`w-4 h-4 ${getStatusColor(app.status)} mr-2`}
+                                                                                />
+                                                                                <span>{app.key}</span>
+                                                                                <span class="text-xs text-gray-500 ml-2">
+                                                                                    ({app.doc_count} {app.doc_count === 1 ? 'trace' : 'traces'})
+                                                                                </span>
+                                                                            </div>
+                                                                        {/each}
+                                                                    </div>
+                                                                {/if}
+                                                            </div>
+                                                        {/each}
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            </div>
+                        {/each}
+                    </div>
                 </div>
-            </div>
-        {/each}
-    </div>
+            {/each}
+        </div>
+    {/if}
 </div>
