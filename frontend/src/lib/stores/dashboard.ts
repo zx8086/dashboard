@@ -66,3 +66,6 @@ export const refreshState = writable<RefreshState>({
     isRefreshing: true,
     lastRefresh: null
 });
+
+// Add this to your existing store if you haven't already
+export const viewMode = writable<'table' | 'tree'>('table');

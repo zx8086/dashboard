@@ -66,3 +66,20 @@ export interface CorrelationData {
         };
     };
 }
+
+export interface TreeNode {
+    domains?: Record<string, DomainNode>;
+    interfaces?: Record<string, InterfaceNode>;
+    correlations?: CorrelationNode[];
+    status: 'success' | 'failed' | 'in-progress' | 'unknown';
+    totalCorrelations: number;
+}
+
+export interface DomainNode extends TreeNode {}
+export interface InterfaceNode extends TreeNode {}
+
+export interface CorrelationNode {
+    id: string;
+    status: 'success' | 'failed' | 'in-progress' | 'unknown';
+    applicationName: string;
+}

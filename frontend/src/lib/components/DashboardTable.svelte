@@ -5,7 +5,6 @@
     import { filters } from '../stores/dashboard';
     import StatusBadge from './StatusBadge.svelte';
     import ApplicationsList from './ApplicationsList.svelte';
-    import DashboardFilters from './DashboardFilters.svelte';
     import AutoRefresh from './AutoRefresh.svelte';
     import { formatElapsedTime } from '../utils/time';
 
@@ -160,8 +159,6 @@
         </h3>
     </div>
 
-    <DashboardFilters />
-    
     <AutoRefresh 
         onRefresh={handleRefresh} 
         isPaused={isScrolling || loadingMore}
