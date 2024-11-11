@@ -8,6 +8,33 @@
     let error: string | null = null;
     let expandedState: Record<string, boolean> = {};
 
+    // Status constants
+    const STATUS = {
+        FAILED: 0,
+        SUCCESS: 1,
+        IN_PROGRESS: 2,
+        UNKNOWN: 3
+    };
+
+    // Calculate status based on children statuses
+    function calculateStatus(items: any[], isCorrelationLevel = false) {
+        if (!items || items.length === 0) return STATUS.UNKNOWN;
+
+        // For correlation level, keep all status types
+        if (isCorrelationLevel) {
+            return items[0].status ?? STATUS.UNKNOWN;
+        }
+
+        // For higher levels (interface/domain/org), only propagate SUCCESS/FAILED
+        const hasFailure = items.some(item => item === STATUS.FAILED);
+        if (hasFailure) return STATUS.FAILED;
+        
+        const hasSuccess = items.some(item => item === STATUS.SUCCESS);
+        if (hasSuccess) return STATUS.SUCCESS;
+
+        return STATUS.UNKNOWN; // Default if no success/failure found
+    }
+
     function getStatusIcon(status: number) {
         switch (status) {
             case 1: return CheckCircle;  // Success
@@ -41,58 +68,71 @@
     }
 
     function processData(data) {
-        console.log('Processing data:', data);
         const tree = {};
         
+        // First pass: Build the tree structure
         data.forEach(item => {
             const org = item.interface_org?.buckets[0]?.key || 'No Organisation';
             const domain = item.interface_domain?.buckets[0]?.key || 'No Domain';
             const interfaceId = item.interface_id?.buckets[0]?.key || 'Unknown';
             const correlationId = item.key;
-            const status = item.overall_status?.value ?? 3;
-            const applications = item.applications?.buckets || [];
+            const status = item.overall_status?.value ?? STATUS.UNKNOWN;
             
+            // Initialize tree structure
             if (!tree[org]) {
-                tree[org] = { domains: {}, status, count: 0 };
+                tree[org] = { domains: {}, status: STATUS.UNKNOWN, count: 0 };
             }
-            
             if (!tree[org].domains[domain]) {
-                tree[org].domains[domain] = { interfaces: {}, status, count: 0 };
+                tree[org].domains[domain] = { interfaces: {}, status: STATUS.UNKNOWN, count: 0 };
             }
-            
             if (!tree[org].domains[domain].interfaces[interfaceId]) {
                 tree[org].domains[domain].interfaces[interfaceId] = {
                     correlations: {},
-                    status,
+                    status: STATUS.UNKNOWN,
                     count: 0
                 };
             }
-            
-            if (!tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId]) {
-                tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId] = {
-                    applications: [],
-                    status,
-                    count: 0
-                };
-            }
-            
-            applications.forEach(app => {
-                if (!tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId].applications.find(a => a.key === app.key)) {
-                    tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId].applications.push({
-                        key: app.key,
-                        doc_count: app.doc_count,
-                        status
-                    });
-                }
-            });
-            
-            tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId].count = applications.length;
+
+            // Set correlation with its status (keeping all status types at this level)
+            tree[org].domains[domain].interfaces[interfaceId].correlations[correlationId] = {
+                status: status,
+                count: item.applications?.buckets.length ?? 0,
+                applications: item.applications?.buckets.map(app => ({
+                    key: app.key,
+                    doc_count: app.doc_count
+                })) || []
+            };
+
+            // Update counts
             tree[org].domains[domain].interfaces[interfaceId].count++;
             tree[org].domains[domain].count++;
             tree[org].count++;
         });
-        
-        console.log('Processed tree:', tree);
+
+        // Second pass: Calculate statuses bottom-up (only SUCCESS/FAILED)
+        Object.keys(tree).forEach(org => {
+            Object.keys(tree[org].domains).forEach(domain => {
+                Object.keys(tree[org].domains[domain].interfaces).forEach(interfaceId => {
+                    const interface_ = tree[org].domains[domain].interfaces[interfaceId];
+                    
+                    // Get correlation statuses (keeping original status)
+                    const correlationStatuses = Object.values(interface_.correlations)
+                        .map(c => c.status);
+                    interface_.status = calculateStatus(correlationStatuses);
+                });
+
+                // Calculate domain status (SUCCESS/FAILED only)
+                const domainStatuses = Object.values(tree[org].domains[domain].interfaces)
+                    .map(i => i.status);
+                tree[org].domains[domain].status = calculateStatus(domainStatuses);
+            });
+
+            // Calculate org status (SUCCESS/FAILED only)
+            const orgStatuses = Object.values(tree[org].domains)
+                .map(d => d.status);
+            tree[org].status = calculateStatus(orgStatuses);
+        });
+
         return tree;
     }
 
